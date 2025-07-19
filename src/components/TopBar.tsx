@@ -18,8 +18,9 @@ interface TopBarProps {
 
 export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   const [pendingJobs] = useState(2); // Mock pending jobs count
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const { settings } = useSettings();
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const { settings, updateSettings } = useSettings();
   const llmProvider = settings.llmProvider;
 
   const handleClearChats = () => {
@@ -32,8 +33,9 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   };
 
   const handleProviderToggle = (checked: boolean) => {
-    // Open settings modal instead of direct toggle for better UX
-    setSettingsOpen(true);
+    const newProvider = checked ? 'OLLAMA' : 'OPENAI';
+    updateSettings({ llmProvider: newProvider });
+    toast(`Switched to ${newProvider}`);
   };
 
   const handleSessionSelect = (sessionId: string) => {
@@ -86,7 +88,7 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
         </Button>
 
         {/* Settings Gear Button */}
-        <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+        <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
           <Settings className="h-4 w-4" />
         </Button>
 
@@ -107,7 +109,7 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSettingsOpen(true)} className="cursor-pointer">
+            <DropdownMenuItem onClick={() => setShowSettings(true)} className="cursor-pointer">
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
@@ -121,7 +123,7 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 };

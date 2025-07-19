@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Separator } from "@/components/ui/separator";
 import { useSettings, type Settings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,84 +64,161 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         </DialogHeader>
         
         <div className="grid gap-6 py-4">
-          {/* n8n Chat Webhook */}
-          <div className="grid gap-2">
-            <Label htmlFor="chatUrl">n8n Chat Webhook</Label>
-            <Input
-              id="chatUrl"
-              type="url"
-              placeholder="https://your-n8n-instance.com/webhook/chat"
-              value={formData.chatUrl}
-              onChange={(e) => handleInputChange('chatUrl', e.target.value)}
-            />
-          </div>
-
-          {/* n8n Ingest URL */}
-          <div className="grid gap-2">
-            <Label htmlFor="ingestUrl">n8n Ingest URL</Label>
-            <Input
-              id="ingestUrl"
-              type="url"
-              placeholder="https://your-n8n-instance.com/webhook/ingest"
-              value={formData.ingestUrl}
-              onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
-            />
-          </div>
-
-          {/* n8n Template URL */}
-          <div className="grid gap-2">
-            <Label htmlFor="templateUrl">n8n Template URL</Label>
-            <Input
-              id="templateUrl"
-              type="url"
-              placeholder="https://your-n8n-instance.com/webhook/template"
-              value={formData.templateUrl}
-              onChange={(e) => handleInputChange('templateUrl', e.target.value)}
-            />
-          </div>
-
-          {/* OpenAI API Key */}
-          <div className="grid gap-2">
-            <Label htmlFor="openaiKey">OpenAI API Key</Label>
-            <Input
-              id="openaiKey"
-              type="password"
-              placeholder="sk-..."
-              value={formData.openaiKey}
-              onChange={(e) => handleInputChange('openaiKey', e.target.value)}
-            />
-          </div>
-
-          {/* Ollama Base URL */}
-          <div className="grid gap-2">
-            <Label htmlFor="ollamaUrl">Ollama Base URL</Label>
-            <Input
-              id="ollamaUrl"
-              type="url"
-              placeholder="http://localhost:11434"
-              value={formData.ollamaUrl}
-              onChange={(e) => handleInputChange('ollamaUrl', e.target.value)}
-            />
-          </div>
-
-          {/* LLM Provider */}
-          <div className="grid gap-3">
-            <Label>LLM Provider</Label>
-            <RadioGroup
-              value={formData.llmProvider}
-              onValueChange={(value: 'OPENAI' | 'OLLAMA') => 
-                handleInputChange('llmProvider', value)
-              }
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="OPENAI" id="openai" />
-                <Label htmlFor="openai">OpenAI</Label>
+          {/* n8n Endpoints */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">n8n Endpoints</h3>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="chatUrl">Chat URL</Label>
+                <Input
+                  id="chatUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/chat"
+                  value={formData.chatUrl}
+                  onChange={(e) => handleInputChange('chatUrl', e.target.value)}
+                />
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="OLLAMA" id="ollama" />
-                <Label htmlFor="ollama">Ollama</Label>
+
+              <div className="grid gap-2">
+                <Label htmlFor="ingestUrl">Ingest URL</Label>
+                <Input
+                  id="ingestUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/ingest"
+                  value={formData.ingestUrl}
+                  onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
+                />
               </div>
-            </RadioGroup>
+
+              <div className="grid gap-2">
+                <Label htmlFor="templateUrl">Template URL</Label>
+                <Input
+                  id="templateUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/template"
+                  value={formData.templateUrl}
+                  onChange={(e) => handleInputChange('templateUrl', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* AI Providers */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">AI Providers</h3>
+            <div className="grid gap-4">
+              <div className="grid gap-3">
+                <Label>LLM Provider</Label>
+                <RadioGroup
+                  value={formData.llmProvider}
+                  onValueChange={(value: 'OPENAI' | 'OLLAMA') => 
+                    handleInputChange('llmProvider', value)
+                  }
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="OPENAI" id="openai" />
+                    <Label htmlFor="openai">OpenAI</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="OLLAMA" id="ollama" />
+                    <Label htmlFor="ollama">Ollama</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="openaiKey">OpenAI API Key</Label>
+                <Input
+                  id="openaiKey"
+                  type="password"
+                  placeholder="sk-..."
+                  value={formData.openaiKey}
+                  onChange={(e) => handleInputChange('openaiKey', e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="ollamaUrl">Ollama Base URL</Label>
+                <Input
+                  id="ollamaUrl"
+                  type="url"
+                  placeholder="http://localhost:11434"
+                  value={formData.ollamaUrl}
+                  onChange={(e) => handleInputChange('ollamaUrl', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Google / Maps */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Google / Maps</h3>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="googleProjectId">Google Cloud Project ID</Label>
+                <Input
+                  id="googleProjectId"
+                  placeholder="your-project-id"
+                  value={formData.googleProjectId}
+                  onChange={(e) => handleInputChange('googleProjectId', e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="googleMapsKey">Google Maps API Key</Label>
+                <Input
+                  id="googleMapsKey"
+                  type="password"
+                  placeholder="AIza..."
+                  value={formData.googleMapsKey}
+                  onChange={(e) => handleInputChange('googleMapsKey', e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="googleOAuthClientId">Google OAuth Client ID</Label>
+                <Input
+                  id="googleOAuthClientId"
+                  placeholder="123456789-abc.apps.googleusercontent.com"
+                  value={formData.googleOAuthClientId}
+                  onChange={(e) => handleInputChange('googleOAuthClientId', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Supabase */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Supabase</h3>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="supabaseUrl">Supabase URL</Label>
+                <Input
+                  id="supabaseUrl"
+                  type="url"
+                  placeholder="https://your-project.supabase.co"
+                  value={formData.supabaseUrl}
+                  onChange={(e) => handleInputChange('supabaseUrl', e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="supabaseKey">Supabase Anon Key</Label>
+                <Input
+                  id="supabaseKey"
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  value={formData.supabaseKey}
+                  onChange={(e) => handleInputChange('supabaseKey', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

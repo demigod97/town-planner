@@ -7,6 +7,11 @@ export type Settings = {
   openaiKey: string;
   ollamaUrl: string;
   llmProvider: 'OPENAI' | 'OLLAMA';
+  googleProjectId: string;
+  googleMapsKey: string;
+  googleOAuthClientId: string;
+  supabaseUrl: string;
+  supabaseKey: string;
 };
 
 // Default settings from environment variables
@@ -17,6 +22,11 @@ const defaultSettings: Settings = {
   openaiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
   ollamaUrl: import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434',
   llmProvider: (import.meta.env.VITE_LLM_PROVIDER as 'OPENAI' | 'OLLAMA') || 'OPENAI',
+  googleProjectId: import.meta.env.VITE_GOOGLE_PROJECT_ID || '',
+  googleMapsKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
+  googleOAuthClientId: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || '',
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
+  supabaseKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
 };
 
 export function getSettings(): Settings {
