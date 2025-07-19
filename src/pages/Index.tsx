@@ -1,7 +1,7 @@
-import { TownPlannerIndex } from "@/components/TownPlannerIndex";
+import { TownPlannerLayout } from "@/components/TownPlannerLayout";
 
 const Index = () => {
-  return <TownPlannerIndex />;
+  return <TownPlannerLayout />;
 };
 
 export default Index;

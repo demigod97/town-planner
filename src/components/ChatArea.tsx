@@ -10,10 +10,6 @@ interface Message {
   avatar?: string;
 }
 
-interface ChatStreamProps {
-  sessionId: string;
-}
-
 const messages: Message[] = [
   {
     id: "1",
@@ -32,10 +28,10 @@ const messages: Message[] = [
   },
 ];
 
-export const ChatStream = ({ sessionId }: ChatStreamProps) => {
+export const ChatArea = () => {
   return (
     <div className="flex-1 flex flex-col bg-background">
-      {/* Messages - Session: {sessionId} */}
+      {/* Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
