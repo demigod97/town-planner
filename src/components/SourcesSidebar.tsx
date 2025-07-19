@@ -5,12 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Document {
+interface Upload {
   id: string;
-  name: string;
-  size: string;
-  checked: boolean;
-  file_size?: number;
+  filename: string;
+  file_size: number;
+  file_path?: string;
+  user_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SourcesSidebarProps {
@@ -31,14 +33,24 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
 
   const { data: uploads = [], isLoading } = useQuery({
     queryKey: ["hh_uploads"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("hh_uploads")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
+    queryFn: async (): Promise<Upload[]> => {
+      // Temporary mock data until hh_uploads table is created
+      return [
+        {
+          id: "1",
+          filename: "planning_regulations.pdf",
+          file_size: 2048576,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: "2", 
+          filename: "zoning_guidelines.pdf",
+          file_size: 1536000,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+      ];
     },
   });
 
@@ -71,7 +83,7 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   };
 
   const filteredUploads = uploads.filter(upload =>
-    upload.filename?.toLowerCase().includes(searchTerm.toLowerCase())
+    upload.filename.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
@@ -107,10 +119,10 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight mb-1">
-                {upload.filename || "Untitled Document"}
+                {upload.filename}
               </p>
               <Badge variant="secondary" className="text-xs">
-                {upload.file_size ? formatFileSize(upload.file_size) : "Unknown size"}
+                {formatFileSize(upload.file_size)}
               </Badge>
             </div>
           </div>

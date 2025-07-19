@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { TopBar } from "./TopBar";
 import { SourcesSidebar } from "./SourcesSidebar";
-import { ChatArea } from "./ChatArea";
-import { ActionsSidebar } from "./ActionsSidebar";
+import { ChatStream } from "./ChatStream";
+import { PermitDrawer } from "./PermitDrawer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, FileText, Settings } from "lucide-react";
 
-export const TownPlannerLayout = () => {
+interface TownPlannerLayoutProps {
+  sessionId: string;
+}
+
+export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
@@ -18,7 +22,7 @@ export const TownPlannerLayout = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop Sources Sidebar */}
         <div className="hidden md:block">
-          <SourcesSidebar />
+          <SourcesSidebar sessionId={sessionId} />
         </div>
         
         {/* Mobile Sources Sheet */}
@@ -29,16 +33,16 @@ export const TownPlannerLayout = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[300px]">
-            <SourcesSidebar />
+            <SourcesSidebar sessionId={sessionId} />
           </SheetContent>
         </Sheet>
         
         {/* Chat Area */}
-        <ChatArea />
+        <ChatStream sessionId={sessionId} />
         
         {/* Desktop Actions Sidebar */}
         <div className="hidden md:block">
-          <ActionsSidebar />
+          <PermitDrawer />
         </div>
         
         {/* Mobile Actions Sheet */}
@@ -49,7 +53,7 @@ export const TownPlannerLayout = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="p-0 w-[300px]">
-            <ActionsSidebar />
+            <PermitDrawer />
           </SheetContent>
         </Sheet>
       </div>
