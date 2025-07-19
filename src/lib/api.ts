@@ -1,9 +1,19 @@
-const CHAT_URL = import.meta.env.VITE_N8N_CHAT_WEBHOOK!;
-const INGEST_URL = import.meta.env.VITE_N8N_INGEST_URL!;
-const TEMPLATE_URL = import.meta.env.VITE_N8N_TEMPLATE_URL!;
-const LLM_PROVIDER = localStorage.getItem('LLM_PROVIDER') || 'OPENAI';
+import { getSettings } from '@/hooks/useSettings';
+
+// Get settings dynamically
+function getApiSettings() {
+  const settings = getSettings();
+  return {
+    CHAT_URL: settings.chatUrl,
+    INGEST_URL: settings.ingestUrl,
+    TEMPLATE_URL: settings.templateUrl,
+    LLM_PROVIDER: settings.llmProvider,
+  };
+}
 
 async function apiRequest(url: string, options: RequestInit = {}) {
+  const { LLM_PROVIDER } = getApiSettings();
+  
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -21,6 +31,7 @@ async function apiRequest(url: string, options: RequestInit = {}) {
 }
 
 export async function chat(query: string, sessionId: string) {
+  const { CHAT_URL } = getApiSettings();
   return apiRequest(CHAT_URL, {
     method: 'POST',
     body: JSON.stringify({ query, sessionId }),
@@ -28,6 +39,7 @@ export async function chat(query: string, sessionId: string) {
 }
 
 export async function template(sessionId: string, permitType: string, address: string, applicant: string) {
+  const { TEMPLATE_URL } = getApiSettings();
   return apiRequest(TEMPLATE_URL, {
     method: 'POST',
     body: JSON.stringify({ sessionId, permitType, address, applicant }),
@@ -49,6 +61,8 @@ export async function saveLocation(sessionId: string, placeId: string, geojson: 
 }
 
 export async function uploadFile(file: File, onProgress?: (progress: number) => void) {
+  const { INGEST_URL, LLM_PROVIDER } = getApiSettings();
+  
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
