@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Upload, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadFile } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
 import { useDropzone } from "react-dropzone";
-import { toast } from "@/hooks/use-toast";
 
 interface Upload {
   id: string;
@@ -33,8 +34,10 @@ const formatFileSize = (bytes: number) => {
 
 export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, boolean>>({});
   const [sources, setSources] = useState<Upload[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const { toast } = useToast();
 
   const { data: uploads = [], isLoading } = useQuery({
     queryKey: ["hh_uploads"],
@@ -63,15 +66,10 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
         }),
       });
 
-      setSelectedFiles(prev => {
-        const newSet = new Set(prev);
-        if (enabled) {
-          newSet.add(fileId);
-        } else {
-          newSet.delete(fileId);
-        }
-        return newSet;
-      });
+      setSelectedFiles(prev => ({
+        ...prev,
+        [fileId]: enabled
+      }));
     } catch (error) {
       console.error("Failed to update file selection:", error);
     }
@@ -80,28 +78,44 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   const onDrop = async (acceptedFiles: File[]) => {
     for (const file of acceptedFiles) {
       try {
-        const result = await uploadFile(file);
-        toast({
-          title: "Uploaded",
-          description: `${file.name} uploaded successfully`,
-        });
+        setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
         
-        // Optimistically add to sources list
-        const newUpload: Upload = {
-          id: result.id,
-          filename: result.fileName,
-          file_size: file.size,
-          file_path: '',
-          user_id: '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setSources(prev => [newUpload, ...prev]);
+        const result = await uploadFile(file, (progress) => {
+          setUploadProgress((prev) => ({ ...prev, [file.name]: progress }));
+        });
+
+        if (result && typeof result === 'object' && 'id' in result) {
+          // Update sources list optimistically
+          const newUpload: Upload = {
+            id: (result as any).id,
+            filename: (result as any).fileName || file.name,
+            file_size: file.size,
+            file_path: '',
+            user_id: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          setSources((prev) => [newUpload, ...prev]);
+          setSelectedFiles((prev) => ({ ...prev, [(result as any).id]: true }));
+          
+          toast({
+            title: "Upload successful",
+            description: `${file.name} has been uploaded successfully.`,
+          });
+        }
       } catch (error) {
+        console.error('Upload failed:', error);
         toast({
           title: "Upload failed",
-          description: `Failed to upload ${file.name}`,
+          description: `Failed to upload ${file.name}. Please try again.`,
           variant: "destructive",
+        });
+      } finally {
+        setUploadProgress((prev) => {
+          const newProgress = { ...prev };
+          delete newProgress[file.name];
+          return newProgress;
         });
       }
     }
@@ -167,7 +181,7 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
         {filteredUploads.map((upload) => (
           <div key={upload.id} className="flex items-start gap-3 p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors">
             <Checkbox
-              checked={selectedFiles.has(upload.id)}
+              checked={selectedFiles[upload.id] || false}
               onCheckedChange={(checked) => handleFileToggle(upload.id, !!checked)}
               className="mt-0.5"
             />

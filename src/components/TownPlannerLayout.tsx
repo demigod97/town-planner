@@ -15,9 +15,13 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
+  const handleSessionSelect = (newSessionId: string) => {
+    window.location.href = `/?sessionId=${newSessionId}`;
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
-      <TopBar />
+      <TopBar onSessionSelect={handleSessionSelect} />
       
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop Sources Sidebar */}

@@ -3,17 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Bell, User, History, Trash2 } from "lucide-react";
+import { Menu, Bell, User, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { HistoryDrawer } from "./HistoryDrawer";
 
 interface TopBarProps {
   onClearChats?: () => void;
+  onSessionSelect?: (sessionId: string) => void;
 }
 
-export const TopBar = ({ onClearChats }: TopBarProps) => {
-  const [historyOpen, setHistoryOpen] = useState(false);
+export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   const [pendingJobs] = useState(2); // Mock pending jobs count
+  const [llmProvider, setLlmProvider] = useState(() => 
+    localStorage.getItem('LLM_PROVIDER') || 'OPENAI'
+  );
 
   const handleClearChats = () => {
     onClearChats?.();
@@ -24,39 +29,23 @@ export const TopBar = ({ onClearChats }: TopBarProps) => {
     toast("Profile settings coming soon");
   };
 
+  const handleProviderToggle = (checked: boolean) => {
+    const newProvider = checked ? 'OLLAMA' : 'OPENAI';
+    setLlmProvider(newProvider);
+    localStorage.setItem('LLM_PROVIDER', newProvider);
+    toast(`Switched to ${newProvider}`);
+    setTimeout(() => window.location.reload(), 1000);
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    onSessionSelect?.(sessionId);
+  };
+
   return (
     <div className="h-14 bg-background border-b flex items-center justify-between px-4 sticky top-0 z-40">
-      {/* Left - Hamburger Menu for History */}
+      {/* Left - History Drawer */}
       <div className="flex items-center gap-3">
-        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[300px]">
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Chat History
-              </SheetTitle>
-            </SheetHeader>
-            <div className="mt-6 space-y-2">
-              <div className="p-3 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                <p className="text-sm font-medium">Building Permit Discussion</p>
-                <p className="text-xs text-muted-foreground">2 hours ago</p>
-              </div>
-              <div className="p-3 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                <p className="text-sm font-medium">Zoning Regulations Query</p>
-                <p className="text-xs text-muted-foreground">Yesterday</p>
-              </div>
-              <div className="p-3 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                <p className="text-sm font-medium">Site Plan Review</p>
-                <p className="text-xs text-muted-foreground">3 days ago</p>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <HistoryDrawer onSessionSelect={handleSessionSelect} />
       </div>
 
       {/* Center - Title */}
@@ -70,8 +59,20 @@ export const TopBar = ({ onClearChats }: TopBarProps) => {
         </h1>
       </div>
 
-      {/* Right - Bell & Avatar */}
+      {/* Right - LLM Toggle, Bell & Avatar */}
       <div className="flex items-center gap-3">
+        {/* LLM Provider Toggle */}
+        <div className="flex items-center gap-2">
+          <Label htmlFor="llm-provider" className="text-sm font-medium">
+            {llmProvider}
+          </Label>
+          <Switch
+            id="llm-provider"
+            checked={llmProvider === 'OLLAMA'}
+            onCheckedChange={handleProviderToggle}
+          />
+        </div>
+
         {/* Bell Icon with Badge */}
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-4 w-4" />

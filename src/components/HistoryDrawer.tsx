@@ -29,7 +29,7 @@ export function HistoryDrawer({ onSessionSelect }: HistoryDrawerProps) {
         .order("updated_at", { ascending: false });
       
       if (error) throw error;
-      return data || [];
+      return (data || []) as ChatSession[];
     },
   });
 

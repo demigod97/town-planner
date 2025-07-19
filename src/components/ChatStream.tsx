@@ -1,6 +1,8 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Send } from "lucide-react";
 import { useState } from "react";
 import Lottie from "lottie-react";
@@ -69,7 +71,7 @@ const messages: Message[] = [
   {
     id: "3",
     type: "assistant",
-    content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines. Would you like me to generate a permit template with this information?",
+    content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
   },
 ];
 
@@ -80,6 +82,59 @@ interface ChatStreamProps {
 export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [citationData, setCitationData] = useState<Record<string, any>>({});
+
+  const handleCitationHover = async (citationId: string) => {
+    if (!citationData[citationId]) {
+      try {
+        const response = await fetch(`/api/citation?id=${citationId}`);
+        const data = await response.json();
+        setCitationData(prev => ({ ...prev, [citationId]: data }));
+      } catch (error) {
+        console.error('Failed to fetch citation:', error);
+      }
+    }
+  };
+
+  const renderMessageContent = (content: string) => {
+    // Simple regex to find citation chips like [1], [2], etc.
+    const citationRegex = /\[(\d+)\]/g;
+    const parts = content.split(citationRegex);
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        // This is a citation number
+        const citationId = part;
+        return (
+          <Popover key={index}>
+            <PopoverTrigger asChild>
+              <Badge 
+                variant="secondary" 
+                className="cursor-pointer mx-1"
+                onMouseEnter={() => handleCitationHover(citationId)}
+              >
+                [{citationId}]
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              {citationData[citationId] ? (
+                <div>
+                  <h4 className="font-semibold mb-2">{citationData[citationId].title}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {citationData[citationId].excerpt}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Loading citation...</div>
+              )}
+            </PopoverContent>
+          </Popover>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Messages */}
@@ -102,7 +157,9 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
                   : 'bg-chat-assistant text-foreground'
               }`}
             >
-              <p className="text-sm leading-relaxed">{message.content}</p>
+              <div className="text-sm leading-relaxed">
+                {message.type === 'assistant' ? renderMessageContent(message.content) : message.content}
+              </div>
             </div>
             
             {message.type === 'user' && (
@@ -140,7 +197,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
             onChange={(e) => setInputValue(e.target.value)}
             disabled={isLoading}
           />
-          <Button size="sm" className="px-6" disabled={isLoading}>
+          <Button size="sm" className="px-6" disabled={isLoading || !inputValue.trim()}>
             <Send className="h-4 w-4 mr-2" />
             Send
           </Button>
