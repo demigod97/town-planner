@@ -99,6 +99,16 @@ All colors MUST be HSL.
   }
 }
 
+@layer components {
+  .bg-chat-user {
+    background-color: hsl(var(--chat-user-bg));
+  }
+  
+  .bg-chat-assistant {
+    background-color: hsl(var(--chat-assistant-bg));
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -106,5 +116,28 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    /* Mobile safe area support */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Mobile viewport fixes */
+  html, body, #root {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+    overflow: hidden;
+  }
+
+  /* Smooth scrolling for mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Swipe gesture support */
+  .swipe-area {
+    touch-action: pan-x pan-y;
   }
 }

@@ -4,50 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Send } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Lottie from "lottie-react";
 
-// Simple thinking animation data
-const thinkingAnimation = {
-  v: "5.5.7",
-  fr: 30,
-  ip: 0,
-  op: 60,
-  w: 100,
-  h: 100,
-  nm: "thinking",
-  ddd: 0,
-  assets: [],
-  layers: [
-    {
-      ddd: 0,
-      ind: 1,
-      ty: 4,
-      nm: "dot1",
-      sr: 1,
-      ks: {
-        o: { a: 1, k: [
-          { i: { x: [0.833], y: [0.833] }, o: { x: [0.167], y: [0.167] }, t: 0, s: [30] },
-          { i: { x: [0.833], y: [0.833] }, o: { x: [0.167], y: [0.167] }, t: 10, s: [100] },
-          { i: { x: [0.833], y: [0.833] }, o: { x: [0.167], y: [0.167] }, t: 20, s: [30] },
-          { t: 30, s: [30] }
-        ] },
-        p: { a: 0, k: [30, 50, 0] },
-        s: { a: 0, k: [100, 100, 100] }
-      },
-      shapes: [
-        {
-          ty: "el",
-          p: { a: 0, k: [0, 0] },
-          s: { a: 0, k: [8, 8] }
-        },
-        {
-          ty: "fl",
-          c: { a: 0, k: [0.4, 0.4, 0.4, 1] }
-        }
-      ]
-    }
-  ]
+// Load thinking animation from public folder
+const useThinkingAnimation = () => {
+  const [animationData, setAnimationData] = useState(null);
+
+  useEffect(() => {
+    fetch('/lottie/thinking.json')
+      .then(response => response.json())
+      .then(data => setAnimationData(data))
+      .catch(error => console.error('Failed to load thinking animation:', error));
+  }, []);
+
+  return animationData;
 };
 
 interface Message {
@@ -83,6 +54,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [citationData, setCitationData] = useState<Record<string, any>>({});
+  const thinkingAnimation = useThinkingAnimation();
 
   const handleCitationHover = async (citationId: string) => {
     if (!citationData[citationId]) {
@@ -136,9 +108,9 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div className="flex-1 flex flex-col bg-background h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="flex-1 overflow-auto p-4 space-y-4 mobile-scroll">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -177,11 +149,19 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
               <div className="w-4 h-4 bg-primary-foreground rounded-sm" />
             </div>
             <div className="max-w-[80%] rounded-lg p-3 bg-chat-assistant text-foreground">
-              <Lottie 
-                animationData={thinkingAnimation} 
-                loop 
-                style={{ width: 40, height: 20 }}
-              />
+              {thinkingAnimation ? (
+                <Lottie 
+                  animationData={thinkingAnimation} 
+                  loop 
+                  style={{ width: 60, height: 30 }}
+                />
+              ) : (
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                </div>
+              )}
             </div>
           </div>
         )}

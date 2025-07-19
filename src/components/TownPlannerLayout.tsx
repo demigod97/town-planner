@@ -20,10 +20,10 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       <TopBar onSessionSelect={handleSessionSelect} />
       
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Desktop Sources Sidebar */}
         <div className="hidden md:block">
           <SourcesSidebar sessionId={sessionId} />
@@ -32,11 +32,11 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
         {/* Mobile Sources Sheet */}
         <Sheet open={sourcesOpen} onOpenChange={setSourcesOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="sm" className="md:hidden fixed top-16 left-2 z-40">
+            <Button variant="ghost" size="sm" className="md:hidden fixed top-16 left-2 z-40 swipe-area">
               <FileText className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-[300px]">
+          <SheetContent side="left" className="p-0 w-[300px] swipe-area">
             <SourcesSidebar sessionId={sessionId} />
           </SheetContent>
         </Sheet>
@@ -52,11 +52,11 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
         {/* Mobile Actions Sheet */}
         <Sheet open={actionsOpen} onOpenChange={setActionsOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="sm" className="md:hidden fixed top-16 right-2 z-40">
+            <Button variant="ghost" size="sm" className="md:hidden fixed top-16 right-2 z-40 swipe-area">
               <Settings className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="p-0 w-[300px]">
+          <SheetContent side="right" className="p-0 w-[300px] swipe-area">
             <PermitDrawer />
           </SheetContent>
         </Sheet>
