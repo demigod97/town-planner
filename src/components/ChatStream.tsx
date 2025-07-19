@@ -110,7 +110,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   return (
     <div className="flex-1 flex flex-col bg-background h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-4 mobile-scroll">
+      <div className="flex-1 overflow-auto p-4 md:px-4 px-14 space-y-4 mobile-scroll">
         {messages.map((message) => (
           <div
             key={message.id}

@@ -41,8 +41,10 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
           </SheetContent>
         </Sheet>
         
-        {/* Chat Area */}
-        <ChatStream sessionId={sessionId} />
+        {/* Chat Area - full width on mobile, flexible on desktop */}
+        <div className="flex-1 flex flex-col min-w-0 md:min-w-[400px]">
+          <ChatStream sessionId={sessionId} />
+        </div>
         
         {/* Desktop Actions Sidebar */}
         <div className="hidden md:block">
