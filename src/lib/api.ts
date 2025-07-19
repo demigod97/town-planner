@@ -1,6 +1,6 @@
-const CHAT_URL = process.env.NEXT_PUBLIC_N8N_CHAT_WEBHOOK!;
-const INGEST_URL = process.env.N8N_INGEST_URL!;
-const TEMPLATE_URL = process.env.N8N_TEMPLATE_URL!;
+const CHAT_URL = import.meta.env.VITE_N8N_CHAT_WEBHOOK!;
+const INGEST_URL = import.meta.env.VITE_N8N_INGEST_URL!;
+const TEMPLATE_URL = import.meta.env.VITE_N8N_TEMPLATE_URL!;
 const LLM_PROVIDER = localStorage.getItem('LLM_PROVIDER') || 'OPENAI';
 
 async function apiRequest(url: string, options: RequestInit = {}) {
