@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Menu, Bell, User, Trash2 } from "lucide-react";
+import { Menu, Bell, User, Trash2, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { HistoryDrawer } from "./HistoryDrawer";
+import { SettingsModal } from "./SettingsModal";
+import { useSettings } from "@/hooks/useSettings";
 
 interface TopBarProps {
   onClearChats?: () => void;
@@ -16,9 +18,9 @@ interface TopBarProps {
 
 export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   const [pendingJobs] = useState(2); // Mock pending jobs count
-  const [llmProvider, setLlmProvider] = useState(() => 
-    localStorage.getItem('LLM_PROVIDER') || 'OPENAI'
-  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { settings } = useSettings();
+  const llmProvider = settings.llmProvider;
 
   const handleClearChats = () => {
     onClearChats?.();
@@ -30,11 +32,7 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   };
 
   const handleProviderToggle = (checked: boolean) => {
-    const newProvider = checked ? 'OLLAMA' : 'OPENAI';
-    setLlmProvider(newProvider);
-    localStorage.setItem('LLM_PROVIDER', newProvider);
-    toast(`Switched to ${newProvider}`);
-    setTimeout(() => window.location.reload(), 1000);
+    setSettingsOpen(true); // Open settings instead of direct toggle
   };
 
   const handleSessionSelect = (sessionId: string) => {
@@ -103,6 +101,10 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSettingsOpen(true)} className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClearChats} className="cursor-pointer text-destructive focus:text-destructive">
               <Trash2 className="mr-2 h-4 w-4" />
@@ -111,6 +113,9 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Settings Modal */}
+      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 };
