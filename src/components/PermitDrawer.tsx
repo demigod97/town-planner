@@ -4,116 +4,151 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { MapTab } from "./MapTab";
+import { toast } from "sonner";
 
-export const PermitDrawer = () => {
-  const [permitType, setPermitType] = useState("new-construction");
-  const [projectAddress, setProjectAddress] = useState("");
-  const [applicantName, setApplicantName] = useState("");
-  const [searchAddress, setSearchAddress] = useState("");
+interface PermitDrawerProps {
+  sessionId?: string;
+  onTemplateCreated?: (id: string) => void;
+}
 
-  const handleGenerateTemplate = () => {
-    console.log("Generate template clicked", { permitType, projectAddress, applicantName });
+export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps) => {
+  const [permitType, setPermitType] = useState("");
+  const [address, setAddress] = useState("");
+  const [applicant, setApplicant] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!permitType || !address || !applicant) {
+      toast("Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          permitType,
+          address,
+          applicant,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast("Template queued successfully");
+        onTemplateCreated?.(data.id);
+        
+        // Reset form
+        setPermitType("");
+        setAddress("");
+        setApplicant("");
+      } else {
+        throw new Error("Failed to submit template request");
+      }
+    } catch (error) {
+      console.error("Template submission error:", error);
+      toast("Failed to queue template");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="w-[340px] bg-sidebar-custom border-l h-full">
-      <Tabs defaultValue="actions" className="h-full flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 m-4 mb-0">
-          <TabsTrigger value="actions">Actions</TabsTrigger>
-          <TabsTrigger value="map">Map</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="actions" className="flex-1 p-4 space-y-6">
-          <div>
-            <h3 className="font-medium text-foreground mb-4">Permit Template Generator</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="permit-type" className="text-sm font-medium">
-                  Permit Type
-                </Label>
-                <Select value={permitType} onValueChange={setPermitType}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new-construction">New Construction</SelectItem>
-                    <SelectItem value="renovation">Renovation</SelectItem>
-                    <SelectItem value="addition">Addition</SelectItem>
-                    <SelectItem value="demolition">Demolition</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="project-address" className="text-sm font-medium">
-                  Project Address
-                </Label>
-                <Input
-                  id="project-address"
-                  placeholder="e.g., 123 Elm Street"
-                  value={projectAddress}
-                  onChange={(e) => setProjectAddress(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="applicant-name" className="text-sm font-medium">
-                  Applicant Name
-                </Label>
-                <Input
-                  id="applicant-name"
-                  placeholder="e.g., Jane Doe"
-                  value={applicantName}
-                  onChange={(e) => setApplicantName(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              
-              <Button 
-                onClick={handleGenerateTemplate}
-                className="w-full mt-6"
-              >
-                Generate Template
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="map" className="flex-1 p-4 space-y-4">
-          <div>
-            <h3 className="font-medium text-foreground mb-4">Address Autocomplete</h3>
-            
+    <div className="w-[340px] bg-sidebar-custom border-l h-full flex flex-col">
+      <div className="p-4 border-b">
+        <h2 className="font-medium text-foreground">Assistant Actions</h2>
+        <p className="text-sm text-muted-foreground">Generate permits and view locations.</p>
+      </div>
+      
+      <div className="flex-1 p-4">
+        <Tabs defaultValue="actions" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="actions">Actions</TabsTrigger>
+            <TabsTrigger value="map">Map</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="actions" className="space-y-4">
             <div>
-              <Label htmlFor="search-address" className="text-sm font-medium">
-                Search Address
-              </Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search-address"
-                  placeholder="Start typing an address..."
-                  value={searchAddress}
-                  onChange={(e) => setSearchAddress(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            
-            {/* Map Preview */}
-            <div className="mt-4">
-              <div className="w-full h-[200px] bg-muted rounded-lg flex items-center justify-center border">
-                <div className="text-center text-muted-foreground">
-                  <div className="text-sm">Map Preview</div>
-                  <div className="text-xs mt-1">300 × 200</div>
+              <h3 className="text-sm font-medium text-foreground mb-3">
+                Permit Template Generator
+              </h3>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="permitType">Permit Type</Label>
+                  <Select value={permitType} onValueChange={setPermitType}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Select permit type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="building">Building Permit</SelectItem>
+                      <SelectItem value="zoning">Zoning Variance</SelectItem>
+                      <SelectItem value="subdivision">Subdivision</SelectItem>
+                      <SelectItem value="site-plan">Site Plan Review</SelectItem>
+                      <SelectItem value="special-use">Special Use Permit</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Property Address</Label>
+                  <Input
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="123 Main Street, City, State"
+                    className="bg-background"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="applicant">Applicant Name</Label>
+                  <Input
+                    id="applicant"
+                    value={applicant}
+                    onChange={(e) => setApplicant(e.target.value)}
+                    placeholder="John Doe"
+                    className="bg-background"
+                  />
+                </div>
+
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Generating..." : "Generate Template"}
+                </Button>
+              </form>
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+          
+          <TabsContent value="map" className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-3">
+                Location & Mapping
+              </h3>
+              
+              {sessionId ? (
+                <MapTab sessionId={sessionId} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Session required for map functionality
+                </p>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

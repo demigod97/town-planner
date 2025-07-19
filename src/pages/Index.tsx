@@ -57,7 +57,7 @@ const Index = () => {
         
         {/* Desktop Actions Sidebar */}
         <div className="hidden md:block">
-          <PermitDrawer />
+          <PermitDrawer sessionId={sessionId} />
         </div>
         
         {/* Mobile Actions Sheet */}
@@ -68,7 +68,7 @@ const Index = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="p-0 w-[300px]">
-            <PermitDrawer />
+            <PermitDrawer sessionId={sessionId} />
           </SheetContent>
         </Sheet>
       </div>
