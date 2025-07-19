@@ -3,12 +3,25 @@ import { getSettings } from '@/hooks/useSettings';
 // Get settings dynamically
 function getApiSettings() {
   const settings = getSettings();
+  const { chatUrl, ingestUrl, templateUrl, n8nBaseUrl, n8nApiKey } = settings;
   return {
-    CHAT_URL: settings.chatUrl,
-    INGEST_URL: settings.ingestUrl,
-    TEMPLATE_URL: settings.templateUrl,
+    CHAT_URL: chatUrl,
+    INGEST_URL: ingestUrl,
+    TEMPLATE_URL: templateUrl,
     LLM_PROVIDER: settings.llmProvider,
+    N8N_BASE_URL: n8nBaseUrl,
+    N8N_API_KEY: n8nApiKey,
   };
+}
+
+// n8n API utility with authentication
+function n8nFetch(path: string, init: RequestInit = {}) {
+  const { N8N_BASE_URL, N8N_API_KEY } = getApiSettings();
+  const headers = { 
+    ...(init.headers || {}), 
+    'Authorization': `Bearer ${N8N_API_KEY}` 
+  };
+  return fetch(`${N8N_BASE_URL}${path}`, { ...init, headers });
 }
 
 async function apiRequest(url: string, options: RequestInit = {}) {
@@ -39,11 +52,18 @@ export async function chat(query: string, sessionId: string) {
 }
 
 export async function template(sessionId: string, permitType: string, address: string, applicant: string) {
-  const { TEMPLATE_URL } = getApiSettings();
-  return apiRequest(TEMPLATE_URL, {
+  const payload = { sessionId, permitType, address, applicant };
+  const response = await n8nFetch('/webhook/permit-template', {
     method: 'POST',
-    body: JSON.stringify({ sessionId, permitType, address, applicant }),
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
   });
+
+  if (!response.ok) {
+    throw new Error(`Template request failed: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 export async function toggleSource(sessionId: string, fileId: string, enabled: boolean) {
@@ -61,8 +81,6 @@ export async function saveLocation(sessionId: string, placeId: string, geojson: 
 }
 
 export async function uploadFile(file: File, onProgress?: (progress: number) => void) {
-  const { INGEST_URL, LLM_PROVIDER } = getApiSettings();
-  
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
@@ -89,8 +107,12 @@ export async function uploadFile(file: File, onProgress?: (progress: number) => 
       reject(new Error('Upload failed'));
     });
 
-    xhr.open('POST', INGEST_URL);
-    xhr.setRequestHeader('LLM_PROVIDER', LLM_PROVIDER);
-    xhr.send(file);
+    const { N8N_BASE_URL, N8N_API_KEY } = getApiSettings();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    xhr.open('POST', `${N8N_BASE_URL}/v1/files`);
+    xhr.setRequestHeader('Authorization', `Bearer ${N8N_API_KEY}`);
+    xhr.send(formData);
   });
 }
