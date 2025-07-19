@@ -12,6 +12,8 @@ export type Settings = {
   googleOAuthClientId: string;
   supabaseUrl: string;
   supabaseKey: string;
+  n8nBaseUrl: string;
+  n8nApiKey: string;
 };
 
 // Default settings from environment variables
@@ -27,6 +29,8 @@ const defaultSettings: Settings = {
   googleOAuthClientId: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || '',
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  n8nBaseUrl: import.meta.env.VITE_N8N_BASE_URL || '',
+  n8nApiKey: import.meta.env.VITE_N8N_API_KEY || '',
 };
 
 export function getSettings(): Settings {
