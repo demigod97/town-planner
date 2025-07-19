@@ -4,8 +4,6 @@ export type Settings = {
   chatUrl: string;
   ingestUrl: string;
   templateUrl: string;
-  n8nBaseUrl: string;
-  n8nApiKey: string;
   openaiKey: string;
   ollamaUrl: string;
   llmProvider: 'OPENAI' | 'OLLAMA';
@@ -21,8 +19,6 @@ const defaultSettings: Settings = {
   chatUrl: import.meta.env.VITE_N8N_CHAT_WEBHOOK || '',
   ingestUrl: import.meta.env.VITE_N8N_INGEST_URL || '',
   templateUrl: import.meta.env.VITE_N8N_TEMPLATE_URL || '',
-  n8nBaseUrl: import.meta.env.VITE_N8N_BASE_URL || '',
-  n8nApiKey: import.meta.env.VITE_N8N_API_KEY || '',
   openaiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
   ollamaUrl: import.meta.env.VITE_OLLAMA_URL || 'http://localhost:11434',
   llmProvider: (import.meta.env.VITE_LLM_PROVIDER as 'OPENAI' | 'OLLAMA') || 'OPENAI',

@@ -67,72 +67,38 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           {/* n8n Endpoints */}
           <div>
             <h3 className="text-lg font-medium mb-4">n8n Endpoints</h3>
-            
-            {/* Workflow Webhooks */}
-            <div className="mb-6">
-              <h4 className="text-sm font-medium text-muted-foreground mb-3">Workflow Webhooks</h4>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="chatUrl">Chat URL</Label>
-                  <Input
-                    id="chatUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/chat"
-                    value={formData.chatUrl}
-                    onChange={(e) => handleInputChange('chatUrl', e.target.value)}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="ingestUrl">Ingest URL</Label>
-                  <Input
-                    id="ingestUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/ingest"
-                    value={formData.ingestUrl}
-                    onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="templateUrl">Template URL</Label>
-                  <Input
-                    id="templateUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/template"
-                    value={formData.templateUrl}
-                    onChange={(e) => handleInputChange('templateUrl', e.target.value)}
-                  />
-                </div>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="chatUrl">Chat URL</Label>
+                <Input
+                  id="chatUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/chat"
+                  value={formData.chatUrl}
+                  onChange={(e) => handleInputChange('chatUrl', e.target.value)}
+                />
               </div>
-            </div>
 
-            {/* n8n API Auth */}
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-3">n8n API Auth</h4>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="n8nBaseUrl">n8n Base URL</Label>
-                  <Input
-                    id="n8nBaseUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com"
-                    value={formData.n8nBaseUrl}
-                    onChange={(e) => handleInputChange('n8nBaseUrl', e.target.value)}
-                  />
-                </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ingestUrl">Ingest URL</Label>
+                <Input
+                  id="ingestUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/ingest"
+                  value={formData.ingestUrl}
+                  onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
+                />
+              </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="n8nApiKey">n8n API Key</Label>
-                  <Input
-                    id="n8nApiKey"
-                    type="password"
-                    placeholder="n8n_api_..."
-                    value={formData.n8nApiKey}
-                    onChange={(e) => handleInputChange('n8nApiKey', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Found in n8n → Settings → API</p>
-                </div>
+              <div className="grid gap-2">
+                <Label htmlFor="templateUrl">Template URL</Label>
+                <Input
+                  id="templateUrl"
+                  type="url"
+                  placeholder="https://your-n8n-instance.com/webhook/template"
+                  value={formData.templateUrl}
+                  onChange={(e) => handleInputChange('templateUrl', e.target.value)}
+                />
               </div>
             </div>
           </div>
