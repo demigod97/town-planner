@@ -28,7 +28,11 @@ const messages: Message[] = [
   },
 ];
 
-export const ChatArea = () => {
+interface ChatStreamProps {
+  sessionId: string;
+}
+
+export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Messages */}

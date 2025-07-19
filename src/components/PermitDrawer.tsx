@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 
-export const ActionsSidebar = () => {
+export const PermitDrawer = () => {
   const [permitType, setPermitType] = useState("new-construction");
   const [projectAddress, setProjectAddress] = useState("");
   const [applicantName, setApplicantName] = useState("");
