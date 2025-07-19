@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Upload, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadFile } from "@/lib/api";
+import { useDropzone } from "react-dropzone";
+import { toast } from "@/hooks/use-toast";
 
 interface Upload {
   id: string;
@@ -30,6 +34,7 @@ const formatFileSize = (bytes: number) => {
 export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [sources, setSources] = useState<Upload[]>([]);
 
   const { data: uploads = [], isLoading } = useQuery({
     queryKey: ["hh_uploads"],
@@ -82,6 +87,44 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
     }
   };
 
+  const onDrop = async (acceptedFiles: File[]) => {
+    for (const file of acceptedFiles) {
+      try {
+        const result = await uploadFile(file);
+        toast({
+          title: "Uploaded",
+          description: `${file.name} uploaded successfully`,
+        });
+        
+        // Optimistically add to sources list
+        const newUpload: Upload = {
+          id: result.id,
+          filename: result.fileName,
+          file_size: file.size,
+          file_path: '',
+          user_id: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setSources(prev => [newUpload, ...prev]);
+      } catch (error) {
+        toast({
+          title: "Upload failed",
+          description: `Failed to upload ${file.name}`,
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf']
+    },
+    multiple: true
+  });
+
   const filteredUploads = uploads.filter(upload =>
     upload.filename.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -100,13 +143,34 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
         <p className="text-sm text-muted-foreground">Select PDF documents to use as context.</p>
       </div>
       
-      <div className="p-4 border-b">
-        <Input
-          placeholder="Search documents..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-3"
-        />
+      <div className="p-4 border-b space-y-4">
+        {/* Dropzone for PDF upload */}
+        <div 
+          {...getRootProps()} 
+          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+          }`}
+        >
+          <input {...getInputProps()} />
+          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          {isDragActive ? (
+            <p className="text-sm text-muted-foreground">Drop PDFs here...</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Drag & drop PDFs here or click to browse
+            </p>
+          )}
+        </div>
+        
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search documents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
       </div>
       
       <div className="flex-1 p-4 space-y-3 overflow-auto">

@@ -45,3 +45,19 @@ export async function saveLocation(sessionId: string, placeId: string, geojson: 
     body: JSON.stringify({ sessionId, placeId, geojson }),
   });
 }
+
+export async function uploadFile(file: File) {
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    body: file,
+    headers: {
+      'LLM_PROVIDER': LLM_PROVIDER,
+    },
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.statusText}`);
+  }
+  
+  return res.json();
+}

@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapTab } from "./MapTab";
-import { toast } from "sonner";
+import { MapPreview } from "./MapPreview";
+import { template } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
 
 interface PermitDrawerProps {
   sessionId?: string;
@@ -13,50 +16,49 @@ interface PermitDrawerProps {
 }
 
 export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps) => {
-  const [permitType, setPermitType] = useState("");
-  const [address, setAddress] = useState("");
-  const [applicant, setApplicant] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { register, handleSubmit, watch, reset } = useForm({
+    defaultValues: {
+      permitType: "",
+      address: "",
+      applicant: ""
+    }
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!permitType || !address || !applicant) {
-      toast("Please fill in all required fields");
+  const watchedAddress = watch("address");
+
+  const onSubmit = async (data: any) => {
+    if (!data.permitType || !data.address || !data.applicant) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsSubmitting(true);
-
+    
     try {
-      const response = await fetch("/api/template", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId,
-          permitType,
-          address,
-          applicant,
-        }),
+      const result = await template(sessionId || "", data.permitType, data.address, data.applicant);
+      
+      toast({
+        title: "Template queued",
+        description: "Your permit template is being generated",
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast("Template queued successfully");
-        onTemplateCreated?.(data.id);
-        
-        // Reset form
-        setPermitType("");
-        setAddress("");
-        setApplicant("");
-      } else {
-        throw new Error("Failed to submit template request");
+      
+      if (onTemplateCreated && result.id) {
+        onTemplateCreated(result.id);
       }
+      
+      reset();
     } catch (error) {
-      console.error("Template submission error:", error);
-      toast("Failed to queue template");
+      toast({
+        title: "Error",
+        description: "Failed to generate template",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -82,10 +84,10 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                 Permit Template Generator
               </h3>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="permitType">Permit Type</Label>
-                  <Select value={permitType} onValueChange={setPermitType}>
+                  <Select {...register("permitType")}>
                     <SelectTrigger className="bg-background">
                       <SelectValue placeholder="Select permit type" />
                     </SelectTrigger>
@@ -103,8 +105,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                   <Label htmlFor="address">Property Address</Label>
                   <Input
                     id="address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    {...register("address")}
                     placeholder="123 Main Street, City, State"
                     className="bg-background"
                   />
@@ -114,12 +115,13 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                   <Label htmlFor="applicant">Applicant Name</Label>
                   <Input
                     id="applicant"
-                    value={applicant}
-                    onChange={(e) => setApplicant(e.target.value)}
+                    {...register("applicant")}
                     placeholder="John Doe"
                     className="bg-background"
                   />
                 </div>
+
+                <MapPreview address={watchedAddress} />
 
                 <Button 
                   type="submit" 
