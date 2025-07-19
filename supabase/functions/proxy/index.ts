@@ -26,6 +26,77 @@ function getSettings(): Settings {
   };
 }
 
+// Handle test requests
+async function handleTestRequest(req: Request, settings: Settings): Promise<Response> {
+  try {
+    const body = await req.json();
+    const { field, key } = body;
+
+    let testUrl: string;
+    let testHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    switch (field) {
+      case 'chat':
+        testUrl = settings.chatUrl;
+        break;
+      case 'ingest':
+        testUrl = settings.ingestUrl;
+        break;
+      case 'template':
+        testUrl = settings.templateUrl;
+        break;
+      case 'n8n':
+        // For n8n API key test, we'll test the health endpoint
+        testUrl = `${settings.n8nBaseUrl}/healthz`;
+        testHeaders['Authorization'] = `Bearer ${key}`;
+        break;
+      default:
+        return new Response(JSON.stringify({ error: 'Invalid field' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+
+    if (!testUrl) {
+      return new Response(JSON.stringify({ error: 'Test URL not configured' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`Testing ${field} at ${testUrl}`);
+    
+    // Make a simple HEAD request to test connectivity
+    const testResponse = await fetch(testUrl, {
+      method: field === 'n8n' ? 'GET' : 'HEAD',
+      headers: testHeaders,
+    });
+
+    console.log(`Test response status: ${testResponse.status}`);
+
+    if (testResponse.ok || testResponse.status === 405) {
+      // 405 Method Not Allowed is also OK for HEAD requests
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else {
+      return new Response(JSON.stringify({ error: `HTTP ${testResponse.status}` }), {
+        status: testResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  } catch (error: any) {
+    console.error('Test error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -60,6 +131,8 @@ const handler = async (req: Request): Promise<Response> => {
       case 'template':
         targetUrl = settings.templateUrl;
         break;
+      case 'test':
+        return handleTestRequest(req, settings);
       default:
         // Handle n8n/* routes
         if (slug.startsWith('n8n')) {

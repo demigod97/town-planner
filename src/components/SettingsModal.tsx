@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { useSettings, type Settings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
+import { TestTube } from "lucide-react";
 
 interface SettingsModalProps {
   open: boolean;
@@ -56,6 +57,52 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     onOpenChange(false);
   };
 
+  const handleTest = async (field: string, value: string) => {
+    if (!value) {
+      toast({
+        title: "Error",
+        description: "Please enter a value before testing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/functions/v1/proxy/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ field, key: value }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "✅ Test Successful",
+          description: `${field} connection is working properly.`,
+        });
+      } else {
+        const errorText = await response.text();
+        toast({
+          title: "❌ Test Failed",
+          description: errorText || `Failed to connect to ${field}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "❌ Test Failed",
+        description: `Network error while testing ${field}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const maskValue = (value: string) => {
+    if (!value) return '';
+    return '•••••••';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
@@ -74,35 +121,68 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="chatUrl">Chat URL</Label>
-                  <Input
-                    id="chatUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/chat"
-                    value={formData.chatUrl}
-                    onChange={(e) => handleInputChange('chatUrl', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="chatUrl"
+                      type="url"
+                      placeholder="https://your-n8n-instance.com/webhook/chat"
+                      value={formData.chatUrl}
+                      onChange={(e) => handleInputChange('chatUrl', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTest('chat', formData.chatUrl)}
+                      className="px-3"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="ingestUrl">Ingest URL</Label>
-                  <Input
-                    id="ingestUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/ingest"
-                    value={formData.ingestUrl}
-                    onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="ingestUrl"
+                      type="url"
+                      placeholder="https://your-n8n-instance.com/webhook/ingest"
+                      value={formData.ingestUrl}
+                      onChange={(e) => handleInputChange('ingestUrl', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTest('ingest', formData.ingestUrl)}
+                      className="px-3"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="templateUrl">Template URL</Label>
-                  <Input
-                    id="templateUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com/webhook/template"
-                    value={formData.templateUrl}
-                    onChange={(e) => handleInputChange('templateUrl', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="templateUrl"
+                      type="url"
+                      placeholder="https://your-n8n-instance.com/webhook/template"
+                      value={formData.templateUrl}
+                      onChange={(e) => handleInputChange('templateUrl', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTest('template', formData.templateUrl)}
+                      className="px-3"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -113,24 +193,46 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="n8nBaseUrl">n8n Base URL</Label>
-                  <Input
-                    id="n8nBaseUrl"
-                    type="url"
-                    placeholder="https://your-n8n-instance.com"
-                    value={formData.n8nBaseUrl}
-                    onChange={(e) => handleInputChange('n8nBaseUrl', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="n8nBaseUrl"
+                      type="url"
+                      placeholder="https://your-n8n-instance.com"
+                      value={formData.n8nBaseUrl}
+                      onChange={(e) => handleInputChange('n8nBaseUrl', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTest('n8n', formData.n8nBaseUrl)}
+                      className="px-3"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="n8nApiKey">n8n API Key</Label>
-                  <Input
-                    id="n8nApiKey"
-                    type="password"
-                    placeholder="Enter your n8n API key"
-                    value={formData.n8nApiKey}
-                    onChange={(e) => handleInputChange('n8nApiKey', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="n8nApiKey"
+                      type="password"
+                      placeholder="Enter your n8n API key"
+                      value={formData.n8nApiKey}
+                      onChange={(e) => handleInputChange('n8nApiKey', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTest('n8n', formData.n8nApiKey)}
+                      className="px-3"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Found in n8n → Settings → API
                   </p>
