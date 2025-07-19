@@ -39,23 +39,13 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   const { data: uploads = [], isLoading } = useQuery({
     queryKey: ["hh_uploads"],
     queryFn: async (): Promise<Upload[]> => {
-      // Temporary mock data until hh_uploads table is created
-      return [
-        {
-          id: "1",
-          filename: "planning_regulations.pdf",
-          file_size: 2048576,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "2", 
-          filename: "zoning_guidelines.pdf",
-          file_size: 1536000,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-      ];
+      const { data, error } = await supabase
+        .from("hh_uploads")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
     },
   });
 

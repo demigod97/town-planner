@@ -46,6 +46,36 @@ export type Database = {
           },
         ]
       }
+      hh_uploads: {
+        Row: {
+          created_at: string
+          file_path: string | null
+          file_size: number
+          filename: string
+          id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_path?: string | null
+          file_size: number
+          filename: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_path?: string | null
+          file_size?: number
+          filename?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           created_at: string | null
