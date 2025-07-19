@@ -32,7 +32,8 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   };
 
   const handleProviderToggle = (checked: boolean) => {
-    setSettingsOpen(true); // Open settings instead of direct toggle
+    // Open settings modal instead of direct toggle for better UX
+    setSettingsOpen(true);
   };
 
   const handleSessionSelect = (sessionId: string) => {
@@ -82,6 +83,11 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
               {pendingJobs}
             </Badge>
           )}
+        </Button>
+
+        {/* Settings Gear Button */}
+        <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+          <Settings className="h-4 w-4" />
         </Button>
 
         {/* Avatar Dropdown */}
