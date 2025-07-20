@@ -21,11 +21,9 @@ HHLM (Town Planning AI Assistant) addresses the challenge of efficiently accessi
 - ⚡ **Real-time Processing**: Sub-5 second response times for document queries
 - 🛠️ **Automated Workflows**: n8n-powered background processing for document ingestion
 
-### Current Status: Development & Integration
+### Current Status: Proof of Concept
 
-- **Phase**: Development - Full backend setup complete
-- **Database**: Complete schema with pgvector support deployed
-- **Edge Functions**: Custom n8n integration functions implemented
+- **Phase**: PoC validation with 100-500 PDFs
 - **Goal**: Validate RAG vs fine-tuning approaches
 - **Target**: <5s response latency with high accuracy
 - **Scaling**: Architecture designed for 20,000+ document expansion
@@ -119,30 +117,11 @@ HHLM (Town Planning AI Assistant) addresses the challenge of efficiently accessi
 
 4. **Database Setup**
    
-   Create a Supabase project and apply the database schema:
+   Create a Supabase project and run the provided migrations:
    ```bash
-   # Initialize Supabase (if not already done)
-   supabase init
-   
-   # Link to your Supabase project
-   supabase link --project-ref your-project-ref
-   
-   # Apply the complete database schema
-   psql -h db.your-project.supabase.co -U postgres -d postgres -f complete-database-schema.sql
-   
-   # OR apply individual migrations
-   supabase db push
-   
-   # Enable pgvector extension
-   supabase sql --db-url "your-connection-string" --file supabase/migrations/enable_pgvector.sql
+   # Ensure your Supabase project is created
+   # Apply database migrations from supabase/migrations/
    ```
-   
-   The complete database schema includes:
-   - Chat sessions and messages tables
-   - File upload tracking
-   - PDF vector embeddings storage
-   - User profiles and templates
-   - Row Level Security (RLS) policies
 
 5. **Start Development Server**
    ```bash
@@ -175,45 +154,29 @@ For full functionality, you'll need to set up the n8n workflows:
 
 ```
 hhlm/
-├── .claude/                     # Claude Code integration
-│   ├── project.json            # Claude project configuration
-│   ├── prompts.json            # Custom Claude prompts
-│   └── commands/               # Claude debug commands
-├── .automation/                 # Development automation
-├── claude-tasks/               # Claude integration scripts
-│   ├── integration-checker.js  # Setup validation
-│   ├── dev-tasks.js           # Development helpers
-│   └── conversation-helper.js  # Context management
-├── src/                        # React frontend application
-│   ├── components/             # React components
-│   │   ├── ui/                # shadcn/ui base components
-│   │   ├── ChatStream.tsx     # Main chat interface
-│   │   ├── SettingsModal.tsx  # Configuration panel
-│   │   └── SourcesSidebar.tsx # PDF management
-│   ├── hooks/                 # Custom React hooks
-│   │   ├── useSettings.tsx    # Settings management
-│   │   ├── useAuth.ts        # Authentication
-│   │   └── useSession.tsx    # Chat sessions
-│   ├── lib/                   # Utilities & API
-│   │   ├── api.ts            # API proxy functions
-│   │   ├── utils.ts          # Helper utilities
-│   │   └── supabase.ts       # Supabase client
-│   └── pages/                 # Route components
-├── supabase/                  # Backend configuration
-│   ├── functions/            # Edge functions
-│   │   ├── n8n-proxy/       # Comprehensive n8n integration
-│   │   ├── trigger-n8n/     # Workflow step triggering
-│   │   ├── upload/          # File upload handling
-│   │   ├── chat/            # Chat management
-│   │   ├── messages/        # Message retrieval
-│   │   └── .env.example     # Environment variables template
-│   └── migrations/          # Database migrations
-├── n8n/                      # Workflow definitions
-├── DOC/                      # Documentation
-├── scripts/                  # Build and test scripts
-│   └── test-supabase.js     # Supabase integration tests
-├── public/                   # Static assets
-└── complete-database-schema.sql # Consolidated database schema
+├── src/                          # React frontend application
+│   ├── components/               # React components
+│   │   ├── ui/                  # shadcn/ui base components
+│   │   ├── ChatStream.tsx       # Main chat interface
+│   │   ├── SettingsModal.tsx    # Configuration panel
+│   │   └── SourcesSidebar.tsx   # PDF management
+│   ├── hooks/                   # Custom React hooks
+│   │   ├── useSettings.tsx      # Settings management
+│   │   ├── useAuth.ts          # Authentication
+│   │   └── useSession.tsx      # Chat sessions
+│   ├── lib/                     # Utilities & API
+│   │   ├── api.ts              # API proxy functions
+│   │   ├── utils.ts            # Helper utilities
+│   │   └── supabase.ts         # Supabase client
+│   └── pages/                   # Route components
+├── supabase/                    # Backend configuration
+│   ├── functions/              # Edge functions
+│   │   └── proxy/              # API proxy router
+│   └── migrations/             # Database migrations
+├── n8n/                        # Workflow definitions
+├── DOC/                        # Documentation
+├── public/                     # Static assets
+└── scripts/                    # Build scripts
 ```
 
 ## 🗄️ Database Schema
@@ -240,90 +203,16 @@ created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
-#### Chat Messages (`hh_chat_messages`)
-```sql
-id          UUID PRIMARY KEY
-session_id  UUID REFERENCES hh_chat_sessions(id)
-role        TEXT CHECK (role IN ('user', 'assistant'))
-content     TEXT NOT NULL
-metadata    JSONB
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-
-#### Templates (`hh_templates`)
-```sql
-id          UUID PRIMARY KEY
-user_id     UUID REFERENCES auth.users(id)
-name        TEXT NOT NULL
-content     TEXT NOT NULL
-metadata    JSONB
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-
-#### PDF Vectors (`hh_pdf_vectors`)
-```sql
-id          UUID PRIMARY KEY
-upload_id   UUID REFERENCES hh_uploads(id)
-chunk_text  TEXT NOT NULL
-embedding   VECTOR(1536)
-page_number INTEGER
-metadata    JSONB
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-
-#### User Profiles (`user_profiles`)
-```sql
-id          UUID PRIMARY KEY REFERENCES auth.users(id)
-full_name   TEXT
-avatar_url  TEXT
-preferences JSONB DEFAULT '{}'
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
+### Planned Extensions
+- `hh_chat_messages` - Chat history storage
+- `hh_templates` - Generated permit templates
+- `hh_pdf_vectors` - Document embeddings
+- `hh_telemetry` - Usage analytics
 
 ### Security
 - **Row Level Security (RLS)** enabled on all tables
 - User-specific access policies
 - Private storage buckets with signed URLs
-
-## 🤖 Claude Code Integration
-
-This project includes comprehensive Claude Code integration for enhanced development workflow:
-
-### Setup Validation
-```bash
-npm run claude:check    # Validates integration setup
-npm run claude:dev      # Development environment check
-```
-
-### Context Management
-```bash
-npm run claude:sync     # Sync conversation context
-npm run claude:context  # Generate context summary
-```
-
-### Service Health Checks
-```bash
-npm run claude:health    # System health check
-npm run claude:supabase  # Supabase service check
-npm run claude:n8n       # n8n service check
-```
-
-### Edge Functions Management
-```bash
-# Deploy all functions
-npm run functions:deploy
-
-# Deploy specific functions
-npm run functions:deploy:n8n-proxy
-npm run functions:deploy:trigger
-
-# Monitor function logs
-npm run functions:logs
-npm run functions:logs:proxy
-npm run functions:logs:trigger
-```
 
 ## 🔧 Development Workflow
 
@@ -335,35 +224,6 @@ npm run dev          # Start development server
 npm run build        # Build for production  
 npm run preview      # Preview production build
 npm run lint         # Run ESLint
-
-# Claude Code Integration
-npm run claude:check     # Validate Claude integration setup
-npm run claude:dev       # Development environment check
-npm run claude:health    # System health check
-npm run claude:supabase  # Supabase service check
-npm run claude:n8n       # n8n service check
-npm run claude:sync      # Sync conversation context
-npm run claude:context   # Generate context summary
-
-# Supabase Management
-npm run test:supabase        # Test Supabase integration
-npm run supabase:types       # Generate TypeScript types
-npm run supabase:reset       # Reset local database
-npm run supabase:migrate     # Apply database migrations
-
-# Edge Functions
-npm run functions:deploy           # Deploy all functions
-npm run functions:deploy:n8n-proxy # Deploy n8n proxy function
-npm run functions:deploy:trigger   # Deploy trigger function
-npm run functions:logs             # View all function logs
-npm run functions:logs:proxy       # View n8n-proxy logs
-npm run functions:logs:trigger     # View trigger-n8n logs
-
-# Docker Services
-npm run docker:up        # Start local services with GPU
-npm run docker:down      # Stop local services
-npm run logs:n8n         # View n8n container logs
-npm run logs:supabase    # View Supabase container logs
 
 # Testing
 npm run test         # Run test suite (when implemented)
@@ -392,30 +252,13 @@ npx cypress open     # Open Cypress test runner
 
 ## 🔌 n8n Workflow Integration
 
-### Edge Functions
-
-We have implemented custom edge functions for comprehensive n8n integration:
-
-#### N8N Proxy Function (`/functions/v1/n8n-proxy/`)
-- **Chat**: `POST /functions/v1/n8n-proxy/chat` - Proxy to n8n chat webhook
-- **Ingest**: `POST /functions/v1/n8n-proxy/ingest` - Proxy to n8n ingest webhook  
-- **Template**: `POST /functions/v1/n8n-proxy/template` - Proxy to n8n template webhook
-- **Test**: `POST /functions/v1/n8n-proxy/test` - Test connectivity to n8n services
-- **API**: `GET /functions/v1/n8n-proxy/n8n/*` - Proxy to n8n API endpoints
-
-#### Trigger Function (`/functions/v1/trigger-n8n`)
-- **Purpose**: Trigger specific n8n workflow steps
-- **Usage**: File processing, workflow orchestration
-- **Steps**: Configurable workflow step endpoints
-
 ### Workflow Endpoints
 
-| Workflow | Direct Endpoint | Edge Function | Purpose |
-|----------|----------------|---------------|----------|
-| Chat | `/webhook/chat` | `/functions/v1/n8n-proxy/chat` | Process user queries → RAG → LLM response |
-| Ingest | `/webhook/ingest` | `/functions/v1/n8n-proxy/ingest` | PDF upload → OCR → chunking → embeddings |
-| Template | `/webhook/template` | `/functions/v1/n8n-proxy/template` | Context → permit template generation |
-| Steps | `/webhook/process-step[1-3]` | `/functions/v1/trigger-n8n` | Workflow step orchestration |
+| Workflow | Endpoint | Purpose |
+|----------|----------|---------|
+| Chat | `/webhook/chat` | Process user queries → RAG → LLM response |
+| Ingest | `/webhook/ingest` | PDF upload → OCR → chunking → embeddings |
+| Template | `/webhook/template` | Context → permit template generation |
 
 ### Expected Data Formats
 
@@ -454,12 +297,6 @@ npm run build
 
 # Output directory: dist/
 # Contains optimized static files ready for deployment
-
-# Test production build locally
-npm run preview
-
-# Validate build with Claude integration
-npm run claude:check
 ```
 
 ### Environment Variables for Production

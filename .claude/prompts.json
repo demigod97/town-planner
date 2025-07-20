@@ -1,0 +1,59 @@
+{
+  "project_context": {
+    "prompt": "You are helping with a React/Vite town planning application that uses Supabase for backend and n8n for workflow automation. The app processes PDFs and provides AI-powered chat functionality. Focus on frontend-backend integration, Docker setup with local-ai-packaged, and workflow automation.",
+    "context_files": [
+      "TASKS.md",
+      "AGENTS.md", 
+      "claude-conversation-summary.md",
+      "integration-report.json",
+      "package.json"
+    ]
+  },
+  "integration_check": {
+    "prompt": "Check the integration status of the town-planner app with local-ai-packaged Docker environment. Verify project structure, environment variables, Docker configuration, Supabase setup, and n8n workflows. Provide specific actionable recommendations for any issues found.",
+    "files": [
+      "docker-compose.yml",
+      ".env",
+      "town-planner-local-package/",
+      "supabase/",
+      "n8n/"
+    ]
+  },
+  "code_review": {
+    "prompt": "Review the React/TypeScript code for best practices, potential issues, and integration patterns. Focus on Supabase client usage, API integration, error handling, TypeScript types, and component architecture. Ensure code follows modern React patterns.",
+    "files": [
+      "src/components/",
+      "src/hooks/",
+      "src/lib/",
+      "src/pages/",
+      "src/main.tsx"
+    ]
+  },
+  "workflow_debug": {
+    "prompt": "Help debug n8n workflow issues and Supabase edge function integration. Check workflow configurations, webhook endpoints, authentication, data flow, and container connectivity. Provide step-by-step troubleshooting guidance.",
+    "files": [
+      "n8n/",
+      "supabase/functions/",
+      ".env",
+      "docker-compose.yml"
+    ]
+  },
+  "docker_setup": {
+    "prompt": "Help with Docker integration using local-ai-packaged. Review Docker configurations, container connectivity, environment variables, service definitions, and networking. Ensure proper integration with existing local-ai-packaged infrastructure.",
+    "files": [
+      "docker-compose.yml",
+      "town-planner-local-package/Dockerfile",
+      "town-planner-local-package/docker-compose.copy.yml",
+      ".env"
+    ]
+  },
+  "frontend_development": {
+    "prompt": "Help with React/Vite frontend development. Review component architecture, state management, API integration, TypeScript usage, styling with Tailwind CSS, and user experience. Focus on file upload, chat interface, and real-time updates.",
+    "files": [
+      "src/",
+      "vite.config.ts",
+      "tsconfig.json",
+      "tailwind.config.ts"
+    ]
+  }
+}

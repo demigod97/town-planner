@@ -1,0 +1,66 @@
+{
+  "name": "town-planner",
+  "description": "React/Vite town planner app with Supabase backend and n8n workflows",
+  "version": "1.0.0",
+  "claude_code": {
+    "project_type": "web_application",
+    "tech_stack": [
+      "React",
+      "TypeScript",
+      "Vite",
+      "Supabase",
+      "Docker",
+      "n8n",
+      "Tailwind CSS"
+    ],
+    "primary_directories": [
+      "src/",
+      "supabase/",
+      "town-planner-local-package/",
+      "n8n/",
+      "claude-tasks/"
+    ],
+    "ignore_patterns": [
+      "node_modules/",
+      "dist/",
+      "build/",
+      ".git/",
+      "*.log",
+      "claude-context.json",
+      "integration-report.json"
+    ],
+    "development_tasks": {
+      "integration_check": {
+        "description": "Check local-ai-packaged integration status",
+        "files": [
+          "docker-compose.yml",
+          ".env",
+          "town-planner-local-package/",
+          "supabase/functions/"
+        ]
+      },
+      "workflow_validation": {
+        "description": "Validate n8n workflows and connections",
+        "files": [
+          "n8n/",
+          "supabase/functions/*/index.ts"
+        ]
+      },
+      "code_review": {
+        "description": "Review React components and API integration",
+        "files": [
+          "src/components/",
+          "src/hooks/",
+          "src/lib/"
+        ]
+      }
+    },
+    "ai_assistant_rules": [
+      "Always check TASKS.md for current development priorities",
+      "Follow the architecture patterns in AGENTS.md",
+      "Ensure Docker integration follows local-ai-packaged patterns",
+      "Validate n8n workflow connections before code changes",
+      "Check environment variable consistency across all config files"
+    ]
+  }
+}
