@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapTab } from "./MapTab";
 import { MapPreview } from "./MapPreview";
-import { template } from "@/lib/api";
+import { template, genTemplate } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 
@@ -17,6 +17,8 @@ interface PermitDrawerProps {
 
 export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [preview, setPreview] = useState<string>('');
+  const [download, setDownload] = useState<string>('');
   
   const { register, handleSubmit, watch, reset } = useForm({
     defaultValues: {
@@ -41,15 +43,21 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
     setIsSubmitting(true);
     
     try {
-      const result = await template(sessionId || "", data.permitType, data.address, data.applicant);
-      
-      toast({
-        title: "Template queued",
-        description: "Your permit template is being generated",
+      const { docx_url, preview_url } = await genTemplate({
+        ...data,
+        sessionId: sessionId || ""
       });
       
-      if (onTemplateCreated && result.id) {
-        onTemplateCreated(result.id);
+      setPreview(preview_url);
+      setDownload(docx_url);
+      
+      toast({
+        title: "Template ready",
+        description: "Your permit template has been generated successfully",
+      });
+      
+      if (onTemplateCreated) {
+        onTemplateCreated(docx_url);
       }
       
       reset();
@@ -130,6 +138,26 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                 >
                   {isSubmitting ? "Generating..." : "Generate Template"}
                 </Button>
+                
+                {download && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-2"
+                    onClick={() => window.open(download, '_blank')}
+                  >
+                    Download Template
+                  </Button>
+                )}
+                
+                {preview && (
+                  <Button 
+                    variant="ghost" 
+                    className="w-full mt-1"
+                    onClick={() => window.open(preview, '_blank')}
+                  >
+                    Preview Template
+                  </Button>
+                )}
               </form>
             </div>
           </TabsContent>

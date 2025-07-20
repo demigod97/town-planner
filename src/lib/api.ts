@@ -1,3 +1,5 @@
+import { getSettings } from "@/hooks/useSettings";
+
 // Supabase proxy base URL
 const PROXY_BASE = '/functions/v1/proxy';
 
@@ -17,6 +19,43 @@ async function proxyRequest(endpoint: string, options: RequestInit = {}) {
   return response.json();
 }
 
+// Helper function to add n8n authorization
+const authed = (headers: Record<string, string> = {}) => {
+  const { n8nApiKey } = getSettings();
+  return { ...headers, 'authorization': n8nApiKey };
+};
+
+// Direct n8n chat endpoint
+export async function sendChat(sessionId: string, question: string) {
+  const { chatUrl } = getSettings();
+  return fetch(chatUrl, {
+    method: 'POST',
+    headers: authed({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ sessionId, question })
+  }).then(r => r.json());
+}
+
+// Direct n8n ingest endpoint  
+export async function ingestPDF({ source_id, file_url, file_path }: { source_id: string, file_url: string, file_path: string }) {
+  const { ingestUrl } = getSettings();
+  return fetch(ingestUrl, {
+    method: 'POST',
+    headers: authed({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ source_id, file_url, file_path, source_type: 'pdf', callback_url: '' })
+  });
+}
+
+// Direct n8n template endpoint
+export async function genTemplate(params: any) {
+  const { templateUrl } = getSettings();
+  return fetch(templateUrl, {
+    method: 'POST',
+    headers: authed({ 'content-type': 'application/json' }),
+    body: JSON.stringify(params)
+  }).then(r => r.json());
+}
+
+// Legacy proxy functions (keeping for backward compatibility)
 export async function chat(query: string, sessionId: string) {
   return proxyRequest('chat', {
     method: 'POST',

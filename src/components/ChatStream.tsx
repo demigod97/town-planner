@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import Lottie from "lottie-react";
+import { sendChat } from "@/lib/api";
 
 // Load thinking animation from public folder
 const useThinkingAnimation = () => {
@@ -54,6 +55,23 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [citationData, setCitationData] = useState<Record<string, any>>({});
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      type: "assistant",
+      content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more. Please select the relevant documents from the \"Sources\" panel.",
+    },
+    {
+      id: "2",
+      type: "user",
+      content: "I need to check the setback requirements for a new residential construction project on Elm Street.",
+    },
+    {
+      id: "3",
+      type: "assistant",
+      content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
+    },
+  ]);
   const thinkingAnimation = useThinkingAnimation();
 
   const handleCitationHover = async (citationId: string) => {
@@ -65,6 +83,43 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
       } catch (error) {
         console.error('Failed to fetch citation:', error);
       }
+    }
+  };
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isLoading) return;
+    
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: "user",
+      content: inputValue
+    };
+    
+    setMessages(m => [...m, userMessage]);
+    setIsLoading(true);
+    setInputValue('');
+    
+    // Add thinking message
+    const thinkingMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      type: "assistant",
+      content: "💭 Town Planner Assistant is thinking…"
+    };
+    setMessages(m => [...m, thinkingMessage]);
+    
+    try {
+      const res = await sendChat(sessionId, inputValue);
+      // Remove thinking message and add actual response
+      setMessages(m => [...m.slice(0, -1), ...res.history]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      setMessages(m => [...m.slice(0, -1), {
+        id: Date.now().toString(),
+        type: "assistant",
+        content: "Sorry, I encountered an error. Please try again."
+      }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -175,9 +230,10 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
             className="flex-1"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             disabled={isLoading}
           />
-          <Button size="sm" className="px-6" disabled={isLoading || !inputValue.trim()}>
+          <Button size="sm" className="px-6" disabled={isLoading || !inputValue.trim()} onClick={handleSend}>
             <Send className="h-4 w-4 mr-2" />
             Send
           </Button>

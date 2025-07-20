@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Upload, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadFile } from "@/lib/api";
+import { uploadFile, ingestPDF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { getSettings } from "@/hooks/useSettings";
 import { Progress } from "@/components/ui/progress";
 import { useDropzone } from "react-dropzone";
 
@@ -90,7 +91,7 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
             id: (result as any).id,
             filename: (result as any).fileName || file.name,
             file_size: file.size,
-            file_path: '',
+            file_path: (result as any).filePath || '',
             user_id: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -99,9 +100,26 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
           setSources((prev) => [newUpload, ...prev]);
           setSelectedFiles((prev) => ({ ...prev, [(result as any).id]: true }));
           
+          // Build file URL and trigger n8n ingestion
+          const { supabaseUrl } = getSettings();
+          const bucket = 'hh_pdf_library';
+          const filePath = (result as any).filePath || '';
+          const file_url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
+          
+          // Trigger n8n PDF ingestion
+          try {
+            await ingestPDF({
+              source_id: (result as any).id,
+              file_url,
+              file_path: filePath
+            });
+          } catch (ingestError) {
+            console.error('PDF ingestion failed:', ingestError);
+          }
+          
           toast({
             title: "Upload successful",
-            description: `${file.name} has been uploaded successfully.`,
+            description: `${file.name} has been uploaded and is being processed.`,
           });
         }
       } catch (error) {
