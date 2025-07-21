@@ -32,3 +32,4 @@ claude-projects-export.json
 .claude/temp/
 DOC/proxy-index.ts
 DOC/trigger-n8n-index.ts
+.env
