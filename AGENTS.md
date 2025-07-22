@@ -206,7 +206,7 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
 # n8n Workflow Integration
-VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/chat
+VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/hhlm-chat
 VITE_N8N_INGEST_URL=http://localhost:5678/webhook/ingest
 VITE_N8N_TEMPLATE_URL=http://localhost:5678/webhook/template
 VITE_N8N_BASE_URL=http://localhost:5678

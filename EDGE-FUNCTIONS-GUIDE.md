@@ -34,7 +34,7 @@ cp supabase/functions/.env.example supabase/functions/.env
 
 # Edit the .env file with your actual values
 # For local development:
-VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/chat
+VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/hhlm-chat
 VITE_N8N_INGEST_URL=http://localhost:5678/webhook/ingest
 VITE_N8N_TEMPLATE_URL=http://localhost:5678/webhook/template
 VITE_N8N_BASE_URL=http://localhost:5678
@@ -78,7 +78,7 @@ Set the environment variables in your Supabase project:
 
 ```bash
 # Set n8n integration variables
-supabase secrets set VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/chat
+supabase secrets set VITE_N8N_CHAT_WEBHOOK=http://localhost:5678/webhook/hhlm-chat
 supabase secrets set VITE_N8N_INGEST_URL=http://localhost:5678/webhook/ingest
 supabase secrets set VITE_N8N_TEMPLATE_URL=http://localhost:5678/webhook/template
 supabase secrets set VITE_N8N_BASE_URL=http://localhost:5678
