@@ -1,3 +1,4 @@
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Send } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Lottie from "lottie-react";
-import { sendChat } from "@/lib/api";
+import { sendChatMessage, getChatMessages } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 // Load thinking animation from public folder
 const useThinkingAnimation = () => {
@@ -24,28 +28,12 @@ const useThinkingAnimation = () => {
 
 interface Message {
   id: string;
-  type: 'user' | 'assistant';
+  message_type: 'human' | 'ai';
   content: string;
-  avatar?: string;
+  created_at: string;
+  sources_used?: any[];
+  citations?: any[];
 }
-
-const messages: Message[] = [
-  {
-    id: "1",
-    type: "assistant",
-    content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more. Please select the relevant documents from the \"Sources\" panel.",
-  },
-  {
-    id: "2",
-    type: "user",
-    content: "I need to check the setback requirements for a new residential construction project on Elm Street.",
-  },
-  {
-    id: "3",
-    type: "assistant",
-    content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
-  },
-];
 
 interface ChatStreamProps {
   sessionId: string;
@@ -55,24 +43,50 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [citationData, setCitationData] = useState<Record<string, any>>({});
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      type: "assistant",
-      content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more. Please select the relevant documents from the \"Sources\" panel.",
-    },
-    {
-      id: "2",
-      type: "user",
-      content: "I need to check the setback requirements for a new residential construction project on Elm Street.",
-    },
-    {
-      id: "3",
-      type: "assistant",
-      content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
-    },
-  ]);
+  const [waitingForAI, setWaitingForAI] = useState(false);
   const thinkingAnimation = useThinkingAnimation();
+  const { toast } = useToast();
+
+  // Fetch messages from database
+  const { data: messages = [], refetch } = useQuery({
+    queryKey: ["chat_messages", sessionId],
+    queryFn: () => getChatMessages(sessionId),
+    enabled: !!sessionId,
+  });
+
+  // Set up real-time subscription for new messages
+  useEffect(() => {
+    if (!sessionId) return;
+
+    console.log('Setting up real-time subscription for session:', sessionId);
+
+    const channel = supabase
+      .channel(`chat_messages_${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          console.log('New message received via real-time:', payload);
+          // Refetch messages to update the UI
+          refetch();
+          // If it's an AI message, stop waiting
+          if (payload.new.message_type === 'ai') {
+            setWaitingForAI(false);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, refetch]);
 
   const handleCitationHover = async (citationId: string) => {
     if (!citationData[citationId]) {
@@ -89,38 +103,32 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
     
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputValue
-    };
-    
-    setMessages(m => [...m, userMessage]);
     setIsLoading(true);
+    setWaitingForAI(true);
+    const userMessageContent = inputValue;
     setInputValue('');
     
-    // Add thinking message
-    const thinkingMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      type: "assistant",
-      content: "💭 Town Planner Assistant is thinking…"
-    };
-    setMessages(m => [...m, thinkingMessage]);
-    
     try {
-      const res = await sendChat(sessionId, inputValue);
-      // Remove thinking message and add actual response
-      setMessages(m => [...m.slice(0, -1), 
-        { id: res.userMessage.id, type: 'user', content: res.userMessage.content },
-        { id: res.aiMessage.id, type: 'assistant', content: res.aiMessage.content }
-      ]);
+      const result = await sendChatMessage(sessionId, userMessageContent);
+      console.log('Message sent, waiting for n8n to process:', result);
+      
+      // Refetch to show the user message immediately
+      refetch();
+      
+      // Show toast that message is being processed
+      toast({
+        title: "Message sent",
+        description: "AI is processing your message...",
+      });
+      
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages(m => [...m.slice(0, -1), {
-        id: Date.now().toString(),
-        type: "assistant",
-        content: "Sorry, I encountered an error. Please try again."
-      }]);
+      setWaitingForAI(false);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -172,9 +180,9 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex gap-3 ${message.message_type === 'human' ? 'justify-end' : 'justify-start'}`}
           >
-            {message.type === 'assistant' && (
+            {message.message_type === 'ai' && (
               <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mt-0.5 flex-shrink-0">
                 <div className="w-4 h-4 bg-primary-foreground rounded-sm" />
               </div>
@@ -182,17 +190,17 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
             
             <div
               className={`max-w-[80%] rounded-lg p-3 ${
-                message.type === 'user'
+                message.message_type === 'human'
                   ? 'bg-chat-user text-primary-foreground'
                   : 'bg-chat-assistant text-foreground'
               }`}
             >
               <div className="text-sm leading-relaxed">
-                {message.type === 'assistant' ? renderMessageContent(message.content) : message.content}
+                {message.message_type === 'ai' ? renderMessageContent(message.content) : message.content}
               </div>
             </div>
             
-            {message.type === 'user' && (
+            {message.message_type === 'human' && (
               <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
                 <AvatarFallback className="bg-muted text-xs">U</AvatarFallback>
               </Avatar>
@@ -200,8 +208,8 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
           </div>
         ))}
         
-        {/* Loading state */}
-        {isLoading && (
+        {/* Waiting for AI response */}
+        {waitingForAI && (
           <div className="flex gap-3 justify-start">
             <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mt-0.5 flex-shrink-0">
               <div className="w-4 h-4 bg-primary-foreground rounded-sm" />

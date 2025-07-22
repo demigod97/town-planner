@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -38,7 +39,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
-  const { data: sources = [], isLoading } = useQuery({
+  const { data: sources = [], isLoading, refetch } = useQuery({
     queryKey: ["sources", notebookId],
     queryFn: async (): Promise<Source[]> => {
       const { data, error } = await supabase
@@ -51,6 +52,53 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
       return data || [];
     },
   });
+
+  // Set up real-time subscription for source updates
+  useEffect(() => {
+    if (!notebookId) return;
+
+    console.log('Setting up real-time subscription for sources in notebook:', notebookId);
+
+    const channel = supabase
+      .channel(`sources_${notebookId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sources',
+          filter: `notebook_id=eq.${notebookId}`
+        },
+        (payload) => {
+          console.log('Source updated via real-time:', payload);
+          // Refetch sources to update the UI
+          refetch();
+          
+          // Show toast for processing status changes
+          if (payload.eventType === 'UPDATE' && payload.new.processing_status !== payload.old?.processing_status) {
+            const status = payload.new.processing_status;
+            if (status === 'completed') {
+              toast({
+                title: "Processing completed",
+                description: `${payload.new.display_name} has been processed successfully.`,
+              });
+            } else if (status === 'failed') {
+              toast({
+                title: "Processing failed",
+                description: `Failed to process ${payload.new.display_name}.`,
+                variant: "destructive",
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up sources real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [notebookId, refetch, toast]);
 
   const handleFileToggle = async (fileId: string, enabled: boolean) => {
     setSelectedFiles(prev => ({
@@ -68,8 +116,12 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         
         toast({
           title: "Upload successful",
-          description: `${file.name} has been uploaded and is being processed.`,
+          description: `${file.name} has been uploaded and n8n is processing it.`,
         });
+
+        // Trigger refetch to show the new source immediately
+        refetch();
+        
       } catch (error) {
         console.error('Upload failed:', error);
         toast({
@@ -106,11 +158,12 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
       </div>
     );
   }
+
   return (
     <div className="w-[260px] bg-sidebar-custom border-r h-full flex flex-col">
       <div className="p-4 border-b">
         <h2 className="font-medium text-foreground mb-1">Sources</h2>
-        <p className="text-sm text-muted-foreground">Select PDF documents to use as context.</p>
+        <p className="text-sm text-muted-foreground">Upload PDFs and n8n will process them automatically.</p>
       </div>
       
       <div className="p-4 border-b space-y-4">
@@ -159,7 +212,15 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
                 <Badge variant="secondary" className="text-xs">
                   {formatFileSize(source.file_size)}
                 </Badge>
-                <Badge variant={source.processing_status === 'completed' ? 'default' : 'outline'} className="text-xs">
+                <Badge 
+                  variant={
+                    source.processing_status === 'completed' ? 'default' : 
+                    source.processing_status === 'failed' ? 'destructive' :
+                    source.processing_status === 'processing' ? 'secondary' : 'outline'
+                  } 
+                  className="text-xs"
+                >
+                  {source.processing_status === 'processing' && '⏳ '}
                   {source.processing_status}
                 </Badge>
               </div>

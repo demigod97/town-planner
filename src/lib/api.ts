@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// API functions for town planning system
+// API functions for town planning system with n8n integration
 export async function uploadFile(file: File, notebookId: string) {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random()}.${fileExt}`;
@@ -33,23 +33,79 @@ export async function uploadFile(file: File, notebookId: string) {
     throw sourceError;
   }
 
-  // Trigger PDF processing
-  const { data: processResult, error: processError } = await supabase.functions.invoke(
-    'process-pdf-with-metadata',
+  // Trigger n8n file processing workflow instead of direct processing
+  const { data: triggerResult, error: triggerError } = await supabase.functions.invoke(
+    'trigger-file-processing-workflow',
     {
       body: {
-        source_id: sourceData.id,
-        file_path: filePath,
-        notebook_id: notebookId
+        sourceId: sourceData.id,
+        filePath: filePath,
+        notebookId: notebookId,
+        fileName: file.name,
+        fileSize: file.size
       }
     }
   );
 
-  if (processError) {
-    throw processError;
+  if (triggerError) {
+    console.error('Failed to trigger file processing workflow:', triggerError);
+    // Don't throw here - file is uploaded, processing will be retried
   }
 
-  return { uploadData, sourceData, processResult };
+  return { uploadData, sourceData, triggerResult };
+}
+
+export async function sendChatMessage(sessionId: string, content: string) {
+  // Add user message first
+  const { data: userMessage, error: userError } = await supabase
+    .from('chat_messages')
+    .insert({
+      session_id: sessionId,
+      message_type: 'human',
+      content
+    })
+    .select()
+    .single();
+
+  if (userError) {
+    throw userError;
+  }
+
+  // Get session to find notebook for context
+  const { data: session, error: sessionError } = await supabase
+    .from('chat_sessions')
+    .select('notebook_id')
+    .eq('id', sessionId)
+    .single();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  // Trigger n8n chat workflow instead of direct AI processing
+  const { data: triggerResult, error: triggerError } = await supabase.functions.invoke(
+    'trigger-chat-workflow',
+    {
+      body: {
+        sessionId: sessionId,
+        messageId: userMessage.id,
+        userMessage: content,
+        notebookId: session.notebook_id
+      }
+    }
+  );
+
+  if (triggerError) {
+    console.error('Failed to trigger chat workflow:', triggerError);
+    // Don't throw here - message is saved, AI response will be handled by n8n
+  }
+
+  return { 
+    userMessage, 
+    triggerResult,
+    // Return a placeholder for immediate UI update
+    aiMessage: null // Will be updated via real-time subscription
+  };
 }
 
 export async function generateReport(params: {
@@ -214,101 +270,9 @@ export async function getChatMessages(sessionId: string) {
   return data;
 }
 
+// Legacy compatibility functions
 export async function sendChat(sessionId: string, question: string) {
   return sendChatMessage(sessionId, question);
-}
-
-export async function sendChatMessage(sessionId: string, content: string) {
-  // Add user message
-  const { data: userMessage, error: userError } = await supabase
-    .from('chat_messages')
-    .insert({
-      session_id: sessionId,
-      message_type: 'human',
-      content
-    })
-    .select()
-    .single();
-
-  if (userError) {
-    throw userError;
-  }
-
-  // Get chat session to find notebook for context
-  const { data: session, error: sessionError } = await supabase
-    .from('chat_sessions')
-    .select('notebook_id')
-    .eq('id', sessionId)
-    .single();
-
-  if (sessionError) {
-    throw sessionError;
-  }
-
-  // Search for relevant context
-  const searchResult = await searchVectors([content], session.notebook_id);
-  const relevantChunks = searchResult.results[0]?.results || [];
-
-  // Build context
-  const context = relevantChunks
-    .map((chunk: any) => chunk.content)
-    .join('\n\n');
-
-  // Generate AI response using Ollama (this would be done via n8n in production)
-  const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama3.1:8b',
-      prompt: `Based on the following context from planning documents, answer this question: ${content}
-
-Context:
-${context}
-
-Please provide a helpful and accurate response based on the context provided.`,
-      stream: false
-    })
-  });
-
-  let aiResponseContent = "I'm unable to process your request at the moment.";
-  
-  if (ollamaResponse.ok) {
-    const ollamaData = await ollamaResponse.json();
-    aiResponseContent = ollamaData.response;
-  }
-
-  // Add AI response
-  const { data: aiMessage, error: aiError } = await supabase
-    .from('chat_messages')
-    .insert({
-      session_id: sessionId,
-      message_type: 'ai',
-      content: aiResponseContent,
-      sources_used: relevantChunks.map((chunk: any) => chunk.source_id),
-      chunks_used: relevantChunks.map((chunk: any) => chunk.id),
-      citations: relevantChunks.map((chunk: any) => ({
-        source_id: chunk.source_id,
-        chunk_id: chunk.id,
-        content: chunk.content.substring(0, 200) + '...'
-      }))
-    })
-    .select()
-    .single();
-
-  if (aiError) {
-    throw aiError;
-  }
-
-  return { 
-    userMessage, 
-    aiMessage, 
-    history: [
-      { role: 'user', content: userMessage.content },
-      { role: 'assistant', content: aiMessage.content }
-    ]
-  };
 }
 
 export async function genTemplate(params: {
@@ -317,7 +281,6 @@ export async function genTemplate(params: {
   address: string;
   applicant: string;
 }) {
-  // Get session to find notebook
   const { data: session, error: sessionError } = await supabase
     .from('chat_sessions')
     .select('notebook_id')
@@ -328,7 +291,6 @@ export async function genTemplate(params: {
     throw sessionError;
   }
 
-  // Get first available template
   const templates = await getReportTemplates();
   if (!templates || templates.length === 0) {
     throw new Error('No report templates available');
