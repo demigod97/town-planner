@@ -9,9 +9,10 @@ import { Menu, FileText, Settings } from "lucide-react";
 
 interface TownPlannerLayoutProps {
   sessionId: string;
+  notebookId?: string;
 }
 
-export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
+export const TownPlannerLayout = ({ sessionId, notebookId = "default" }: TownPlannerLayoutProps) => {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
@@ -26,7 +27,7 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Desktop Sources Sidebar */}
         <div className="hidden md:block">
-          <SourcesSidebar sessionId={sessionId} />
+          <SourcesSidebar notebookId={notebookId} />
         </div>
         
         {/* Mobile Sources Sheet */}
@@ -37,7 +38,7 @@ export const TownPlannerLayout = ({ sessionId }: TownPlannerLayoutProps) => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[300px] swipe-area">
-            <SourcesSidebar sessionId={sessionId} />
+            <SourcesSidebar notebookId={notebookId} />
           </SheetContent>
         </Sheet>
         

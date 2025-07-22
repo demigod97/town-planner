@@ -5,24 +5,23 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Upload, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadFile, ingestPDF } from "@/lib/api";
+import { uploadFile } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { getSettings } from "@/hooks/useSettings";
 import { Progress } from "@/components/ui/progress";
 import { useDropzone } from "react-dropzone";
 
-interface Upload {
+interface Source {
   id: string;
-  filename: string;
+  display_name: string;
   file_size: number;
   file_path?: string;
-  user_id?: string;
+  processing_status: string;
   created_at: string;
   updated_at: string;
 }
 
 interface SourcesSidebarProps {
-  sessionId: string;
+  notebookId: string;
 }
 
 const formatFileSize = (bytes: number) => {
@@ -33,19 +32,19 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
+export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<Record<string, boolean>>({});
-  const [sources, setSources] = useState<Upload[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
-  const { data: uploads = [], isLoading } = useQuery({
-    queryKey: ["hh_uploads"],
-    queryFn: async (): Promise<Upload[]> => {
+  const { data: sources = [], isLoading } = useQuery({
+    queryKey: ["sources", notebookId],
+    queryFn: async (): Promise<Source[]> => {
       const { data, error } = await supabase
-        .from("hh_uploads")
+        .from("sources")
         .select("*")
+        .eq("notebook_id", notebookId)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -54,26 +53,10 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
   });
 
   const handleFileToggle = async (fileId: string, enabled: boolean) => {
-    try {
-      await fetch("/api/chat/sources", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId,
-          fileId,
-          enabled,
-        }),
-      });
-
-      setSelectedFiles(prev => ({
-        ...prev,
-        [fileId]: enabled
-      }));
-    } catch (error) {
-      console.error("Failed to update file selection:", error);
-    }
+    setSelectedFiles(prev => ({
+      ...prev,
+      [fileId]: enabled
+    }));
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
@@ -81,47 +64,12 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
       try {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
         
-        const result = await uploadFile(file, (progress) => {
-          setUploadProgress((prev) => ({ ...prev, [file.name]: progress }));
+        const result = await uploadFile(file, notebookId);
+        
+        toast({
+          title: "Upload successful",
+          description: `${file.name} has been uploaded and is being processed.`,
         });
-
-        if (result && typeof result === 'object' && 'id' in result) {
-          // Update sources list optimistically
-          const newUpload: Upload = {
-            id: (result as any).id,
-            filename: (result as any).fileName || file.name,
-            file_size: file.size,
-            file_path: (result as any).filePath || '',
-            user_id: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-          setSources((prev) => [newUpload, ...prev]);
-          setSelectedFiles((prev) => ({ ...prev, [(result as any).id]: true }));
-          
-          // Build file URL and trigger n8n ingestion
-          const { supabaseUrl } = getSettings();
-          const bucket = 'hh_pdf_library';
-          const filePath = (result as any).filePath || '';
-          const file_url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
-          
-          // Trigger n8n PDF ingestion
-          try {
-            await ingestPDF({
-              source_id: (result as any).id,
-              file_url,
-              file_path: filePath
-            });
-          } catch (ingestError) {
-            console.error('PDF ingestion failed:', ingestError);
-          }
-          
-          toast({
-            title: "Upload successful",
-            description: `${file.name} has been uploaded and is being processed.`,
-          });
-        }
       } catch (error) {
         console.error('Upload failed:', error);
         toast({
@@ -147,8 +95,8 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
     multiple: true
   });
 
-  const filteredUploads = uploads.filter(upload =>
-    upload.filename.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredSources = sources.filter(source =>
+    source.display_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
@@ -196,24 +144,29 @@ export const SourcesSidebar = ({ sessionId }: SourcesSidebarProps) => {
       </div>
       
       <div className="flex-1 p-4 space-y-3 overflow-auto">
-        {filteredUploads.map((upload) => (
-          <div key={upload.id} className="flex items-start gap-3 p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors">
+        {filteredSources.map((source) => (
+          <div key={source.id} className="flex items-start gap-3 p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors">
             <Checkbox
-              checked={selectedFiles[upload.id] || false}
-              onCheckedChange={(checked) => handleFileToggle(upload.id, !!checked)}
+              checked={selectedFiles[source.id] || false}
+              onCheckedChange={(checked) => handleFileToggle(source.id, !!checked)}
               className="mt-0.5"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight mb-1">
-                {upload.filename}
+                {source.display_name}
               </p>
-              <Badge variant="secondary" className="text-xs">
-                {formatFileSize(upload.file_size)}
-              </Badge>
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {formatFileSize(source.file_size)}
+                </Badge>
+                <Badge variant={source.processing_status === 'completed' ? 'default' : 'outline'} className="text-xs">
+                  {source.processing_status}
+                </Badge>
+              </div>
             </div>
           </div>
         ))}
-        {filteredUploads.length === 0 && (
+        {filteredSources.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
             {searchTerm ? "No documents match your search." : "No documents uploaded yet."}
           </p>

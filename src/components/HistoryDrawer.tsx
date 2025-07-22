@@ -21,15 +21,20 @@ export function HistoryDrawer({ onSessionSelect }: HistoryDrawerProps) {
   const [open, setOpen] = useState(false);
 
   const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ["hh_chat_sessions"],
+    queryKey: ["chat_sessions"],
     queryFn: async (): Promise<ChatSession[]> => {
       const { data, error } = await supabase
-        .from("hh_chat_sessions")
-        .select("*")
+        .from("chat_sessions")
+        .select("id, session_name, created_at, updated_at")
         .order("updated_at", { ascending: false });
       
       if (error) throw error;
-      return (data || []) as ChatSession[];
+      return (data || []).map((session: any) => ({
+        id: session.id,
+        title: session.session_name || 'Untitled Session',
+        created_at: session.created_at,
+        updated_at: session.updated_at
+      }));
     },
   });
 

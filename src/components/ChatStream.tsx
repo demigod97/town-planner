@@ -110,7 +110,10 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
     try {
       const res = await sendChat(sessionId, inputValue);
       // Remove thinking message and add actual response
-      setMessages(m => [...m.slice(0, -1), ...res.history]);
+      setMessages(m => [...m.slice(0, -1), 
+        { id: res.userMessage.id, type: 'user', content: res.userMessage.content },
+        { id: res.aiMessage.id, type: 'assistant', content: res.aiMessage.content }
+      ]);
     } catch (error) {
       console.error('Chat error:', error);
       setMessages(m => [...m.slice(0, -1), {

@@ -37,7 +37,7 @@ const Index = () => {
       <div className="flex-1 grid grid-cols-[260px_1fr_340px] md:grid-cols-3 overflow-hidden">
         {/* Desktop Sources Sidebar */}
         <div className="hidden md:block">
-          <SourcesSidebar sessionId={sessionId} />
+          <SourcesSidebar notebookId="default" />
         </div>
         
         {/* Mobile Sources Sheet */}
@@ -48,7 +48,7 @@ const Index = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[300px]">
-            <SourcesSidebar sessionId={sessionId} />
+            <SourcesSidebar notebookId="default" />
           </SheetContent>
         </Sheet>
         
