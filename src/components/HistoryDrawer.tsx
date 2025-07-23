@@ -25,13 +25,13 @@ export function HistoryDrawer({ onSessionSelect }: HistoryDrawerProps) {
     queryFn: async (): Promise<ChatSession[]> => {
       const { data, error } = await supabase
         .from("chat_sessions")
-        .select("id, session_name, created_at, updated_at")
+        .select("id, title, created_at, updated_at")
         .order("updated_at", { ascending: false });
       
       if (error) throw error;
       return (data || []).map((session: any) => ({
         id: session.id,
-        title: session.session_name || 'Untitled Session',
+        title: session.title || 'Untitled Session',
         created_at: session.created_at,
         updated_at: session.updated_at
       }));

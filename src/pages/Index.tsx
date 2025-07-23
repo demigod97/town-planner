@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
+import { getDefaultNotebook } from "@/lib/api";
 import { TopBar } from "@/components/TopBar";
 import { SourcesSidebar } from "@/components/SourcesSidebar";
 import { ChatStream } from "@/components/ChatStream";
@@ -12,10 +13,22 @@ import { FileText, Settings } from "lucide-react";
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string>("");
+  const [notebookId, setNotebookId] = useState<string>("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
   useEffect(() => {
+    const initializeNotebook = async () => {
+      try {
+        const defaultNotebook = await getDefaultNotebook();
+        setNotebookId(defaultNotebook.id);
+      } catch (error) {
+        console.error("Failed to get default notebook:", error);
+      }
+    };
+
+    initializeNotebook();
+
     const currentSessionId = searchParams.get("sessionId");
     if (currentSessionId) {
       setSessionId(currentSessionId);
@@ -26,7 +39,7 @@ const Index = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  if (!sessionId) {
+  if (!sessionId || !notebookId) {
     return <div>Loading...</div>;
   }
 
@@ -37,7 +50,7 @@ const Index = () => {
       <div className="flex-1 grid grid-cols-[260px_1fr_340px] md:grid-cols-3 overflow-hidden">
         {/* Desktop Sources Sidebar */}
         <div className="hidden md:block">
-          <SourcesSidebar notebookId="default" />
+          <SourcesSidebar notebookId={notebookId} />
         </div>
         
         {/* Mobile Sources Sheet */}
@@ -48,7 +61,7 @@ const Index = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[300px]">
-            <SourcesSidebar notebookId="default" />
+            <SourcesSidebar notebookId={notebookId} />
           </SheetContent>
         </Sheet>
         
@@ -57,7 +70,7 @@ const Index = () => {
         
         {/* Desktop Actions Sidebar */}
         <div className="hidden md:block">
-          <PermitDrawer sessionId={sessionId} />
+          <PermitDrawer sessionId={sessionId} notebookId={notebookId} />
         </div>
         
         {/* Mobile Actions Sheet */}
@@ -68,7 +81,7 @@ const Index = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="p-0 w-[300px]">
-            <PermitDrawer sessionId={sessionId} />
+            <PermitDrawer sessionId={sessionId} notebookId={notebookId} />
           </SheetContent>
         </Sheet>
       </div>
