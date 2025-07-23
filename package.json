@@ -64,6 +64,7 @@
     "@supabase/supabase-js": "^2.52.0",
     "@tanstack/react-query": "^5.56.2",
     "busboy": "^1.6.0",
+    "caniuse-lite": "^1.0.30001727",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

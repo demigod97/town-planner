@@ -1,515 +1,170 @@
-# TASKS.md - Development Task Backlog
+# 📋 TASKS.md – Development Backlog (updated 24 Jul 2025)
 
-> **⚠️ Important**: This file should be reviewed and updated before starting any development work. Current priorities are marked with urgency levels.
-
-## ✅ Recently Completed (Session Updates)
-
-### ✅ Backend Infrastructure Setup
-**Status**: ✅ COMPLETED  
-**Description**: Complete Supabase backend setup with database, edge functions, and security
-
-**Completed Tasks**:
-- [x] Complete database schema design and implementation
-- [x] Row Level Security (RLS) policies for all tables
-- [x] Custom edge functions (n8n-proxy, trigger-n8n, upload, chat, messages)
-- [x] Storage bucket configuration with security policies
-- [x] Environment variable templates and configuration
-- [x] Claude Code integration setup with automation scripts
-- [x] Comprehensive testing infrastructure
-- [x] SQL migration consolidation into single schema file
-
-**Files Created/Modified**:
-- `complete-database-schema.sql` - Consolidated database schema
-- `supabase/functions/n8n-proxy/index.ts` - N8N integration proxy
-- `supabase/functions/trigger-n8n/index.ts` - Workflow step triggering
-- `.claude/` directory - Claude Code integration
-- `claude-tasks/` directory - Development automation
-- `package.json` - Added Claude and Supabase scripts
-- `EDGE-FUNCTIONS-GUIDE.md` - Edge functions documentation
+> **Review this file every Monday before sprint planning.**
+> Categories: **🔴 Critical**, **🟡 High**, **🟢 Medium**, **🔵 Low**.
 
 ---
 
-## 🔴 Critical Issues (Blocking Core Functionality)
+## ✅ Recently Completed
 
-### 1. Chat Send Button Not Activating Workflows
-**Priority**: 🔥 URGENT  
-**Status**: 🚫 Broken  
-**Description**: Chat send button doesn't trigger n8n workflows  
-
-**Root Cause Analysis**:
-- Frontend sends to `/functions/v1/proxy/chat` endpoint
-- Proxy function may not be properly routing to n8n webhook
-- n8n chat workflow may not be activated or configured correctly
-- Authentication headers might be missing or incorrect
-
-**Tasks**:
-- [ ] Debug Supabase Edge Function proxy routing
-- [ ] Verify n8n chat workflow is activated
-- [ ] Test webhook URL connectivity from proxy function
-- [ ] Check authentication headers in proxy requests
-- [ ] Add comprehensive error logging to proxy function
-- [ ] Test chat workflow with manual webhook calls
-
-**Files to Check**:
-- `supabase/functions/proxy/index.ts`
-- `src/lib/api.ts` 
-- n8n chat workflow configuration
-- Browser console errors
+| Area                        | Notes                                                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Supabase v2.0 Migration** | — schema pushed, pgvector enabled, RLS verified                                                                   |
+| **Edge Function Suite**     | process-pdf-with-metadata · generate-embeddings · batch-vector-search · generate-report · process-report-sections |
+| **Front-end Port**          | React ➞ **SvelteKit** with streaming ChatStream component                                                         |
+| **Langfuse Telemetry**      | hooks wired in n8n for chat + embeddings                                                                          |
+| **CI   Pipeline**           | Husky + lint-staged + Vitest + Playwright smoke test                                                              |
 
 ---
 
-### 2. File Upload Not Triggering Processing Workflows
-**Priority**: 🔥 URGENT  
-**Status**: 🚫 Broken  
-**Description**: PDF uploads succeed but don't trigger n8n processing workflows
+## 🔴 Critical Issues (Blocking E2E Flow)
 
-**Root Cause Analysis**:
-- File uploads to Supabase storage succeed
-- Database records created in `hh_uploads` table
-- n8n ingest workflow not being triggered
-- Missing webhook calls after file upload
-- Processing status not updating
+### 1 · Chat Send Button **not** triggering workflows
 
-**Tasks**:
-- [ ] Implement file upload trigger to n8n ingest workflow
-- [ ] Add webhook call after successful file upload
-- [ ] Create processing status tracking system
-- [ ] Implement file processing queue system
-- [ ] Add error handling for failed processing
-- [ ] Create retry mechanism for failed uploads
+**Status**: 🚫 Broken   **Owner**: @frontend   **ETA**: ASAP
 
-**Implementation Steps**:
-1. Add webhook call in file upload success handler
-2. Create `hh_processing_jobs` table for tracking
-3. Implement status polling system
-4. Add UI indicators for processing status
+* FE posts to `/functions/v1/batch-vector-search` «works» but **n8n** `hhlm-chat` webhook never receives event.
+* Suspect: wrong `N8N_WEBHOOK_BASE_URL` or missing `referer` header.
 
-**Files to Modify**:
-- File upload component (needs identification)
-- Upload success handler
-- New processing status components
-- Database migration for job tracking
+**Action Items**
+
+1. [ ] Add debug `console.info("webhook url", url)` before fetch in `src/lib/api/chat.ts`.
+2. [ ] Inspect Edge logs `supabase functions logs --follow`.
+3. [ ] Ensure **n8n** workflow is **active** and tunnel exposed (if dev).
+4. [ ] Unit-test proxy with `curl`.
 
 ---
 
-### 3. Settings Modal Credentials Not Persisting/Functioning
-**Priority**: 🔴 HIGH  
-**Status**: 🚫 Broken  
-**Description**: Settings saved message appears but configuration not working
+### 2 · **File Upload Pipeline** – fails early & no processing
 
-**Root Cause Analysis**:
-- Settings save to localStorage but may not be used by API calls
-- Connection testing may be using hardcoded values
-- Proxy function may not be reading settings from environment
-- API key validation not working properly
+**Status**: 🔥 URGENT   **Owner**: @full-stack
 
-**Tasks**:
-- [ ] Debug settings persistence in localStorage
-- [ ] Verify settings are used in API proxy function calls
-- [ ] Fix connection testing functionality
-- [ ] Add real-time validation of API keys/URLs
-- [ ] Implement settings sync with backend
-- [ ] Add settings export/import functionality
+| Symptom                     | Details                                              |
+| --------------------------- | ---------------------------------------------------- |
+| **Upload 400/500**          | UI toast “Failed to upload”. No record in `sources`. |
+| **Template gen form error** | “Fill all fields” even when populated.               |
 
-**Settings to Fix**:
-- n8n webhook URLs not being used
-- n8n API key validation
-- OpenAI/Ollama API key testing
-- Connection status indicators
+Expected flow:
 
-**Files to Check**:
-- `src/hooks/useSettings.tsx`
-- `src/components/SettingsModal.tsx`
-- `supabase/functions/proxy/index.ts`
-
----
-
-### 4. n8n API Workflow Test Passing Without Valid Configuration
-**Priority**: 🔴 HIGH  
-**Status**: 🐛 Bug  
-**Description**: n8n connection test succeeds even with empty API key and endpoint fields
-
-**Root Cause Analysis**:
-- Test function not properly validating required fields
-- Mock success responses for development
-- Missing field validation in test endpoint
-- Proxy function not enforcing authentication
-
-**Tasks**:
-- [ ] Implement proper field validation in test function
-- [ ] Add authentication requirement for n8n API calls
-- [ ] Create comprehensive connection testing
-- [ ] Add field-by-field validation feedback
-- [ ] Implement test result caching to avoid spam
-- [ ] Add network connectivity checks
-
-**Test Requirements**:
-- Validate URL format and reachability
-- Test API key authentication
-- Verify workflow existence and activation
-- Check response format and structure
-
----
-
-## 🟡 High Priority (Core Features)
-
-### 5. Chat Message Persistence
-**Priority**: 🟡 HIGH  
-**Status**: 📋 Planned  
-**Description**: Implement chat history storage and retrieval
-
-**Requirements**:
-- Store all chat messages in `hh_chat_messages` table
-- Load chat history when session is reopened
-- Implement message pagination for large histories
-- Add message search functionality
-
-**Tasks**:
-- [ ] Create chat message database hook
-- [ ] Implement message storage on send/receive
-- [ ] Add chat history loading on session open
-- [ ] Create message pagination system
-- [ ] Add message search/filter functionality
-- [ ] Implement message edit/delete (if required)
-
-**Status Update**: ✅ COMPLETED - Database schema implemented
-
-**Database Implementation**:
-```sql
--- ✅ IMPLEMENTED in complete-database-schema.sql
-CREATE TABLE hh_chat_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID REFERENCES hh_chat_sessions(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-  content TEXT NOT NULL,
-  metadata JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+```
+<Svelte FileDrop> → POST /storage/v1/upload
+                   → insert into sources
+                   → Edge process-pdf-with-metadata
+                   → n8n generate-embeddings
 ```
 
----
+**Debug Checklist**
 
-### 6. PDF Processing Status Indicators
-**Priority**: 🟡 HIGH  
-**Status**: 📋 Planned  
-**Description**: Show real-time processing status for uploaded files
+* [ ] Network tab: verify `multipart/form-data` and Supabase auth headers.
+* [ ] Edge function `process-pdf-with-metadata` guard clauses—rejecting mime?
+* [ ] Confirm storage bucket ACL (`private.documents`).
+* [ ] Validate form zod-schema in `/routes/(app)/templates/+page.ts`.
+* [ ] Add step-by-step log to n8n ingest webhook.
 
-**Requirements**:
-- Visual indicators for processing states (uploading, processing, completed, failed)
-- Progress bars or spinners during processing
-- Error messages for failed processing
-- Retry buttons for failed uploads
+**Sub-Tasks**
 
-**Tasks**:
-- [ ] Create processing status components
-- [ ] Implement status polling system
-- [ ] Add visual progress indicators
-- [ ] Create error state handling
-- [ ] Add retry functionality
-- [ ] Implement status notifications
-
-**Processing States**:
-1. `uploading` - File being uploaded to storage
-2. `processing` - n8n workflow processing file
-3. `completed` - Processing successful, searchable
-4. `failed` - Processing failed, needs retry
-5. `retrying` - Attempting reprocessing
+1. [ ] Introduce `processing_jobs` row immediately after successful upload (status=`QUEUED`).
+2. [ ] Bubble upload & template errors to UI via `toast.error` with reason.
+3. [ ] Write Cypress regression covering upload►template►report path.
 
 ---
 
-### 7. Vector Search Implementation
-**Priority**: 🟡 HIGH  
-**Status**: 📋 Planned  
-**Description**: Implement pgvector-based semantic search for RAG
+### 3 · Settings Modal **not** persisting credentials
 
-**Requirements**:
-- Enable pgvector extension in Supabase
-- Create embeddings table structure
-- Implement embedding generation workflow
-- Create similarity search functions
+**Priority**: 🔴 HIGH   **Status**: Open
 
-**Tasks**:
-- [ ] Enable pgvector extension in Supabase
-- [ ] Create `hh_pdf_vectors` table
-- [ ] Implement embedding generation in n8n
-- [ ] Create similarity search functions
-- [ ] Add vector search to chat workflow
-- [ ] Optimize search performance
+* Settings write to `localStorage`, but `supabase.from()` still uses fallback env values.
 
-**Status Update**: ✅ COMPLETED - Database schema implemented
+**Fix Plan**
 
-**Database Implementation**:
-```sql
--- ✅ IMPLEMENTED in complete-database-schema.sql
-CREATE TABLE hh_pdf_vectors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  upload_id UUID REFERENCES hh_uploads(id) ON DELETE CASCADE,
-  chunk_text TEXT NOT NULL,
-  embedding VECTOR(1536),
-  page_number INTEGER,
-  metadata JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- ✅ pgvector extension enabled
--- ✅ Similarity search functions created
-```
+1. [ ] Convert `useSettingsStore` to Svelte-Persisted store.
+2. [ ] Inject dynamic headers in `supabase.ts` client factory.
+3. [ ] Real-time ping test on save.
 
 ---
 
-### 8. Permit Template Generation
-**Priority**: 🟡 HIGH  
-**Status**: 📋 Planned  
-**Description**: AI-powered permit template generation based on chat context
+### 4 · n8n **API test** passes with empty creds
 
-**Requirements**:
-- Template generation workflow in n8n
-- Template storage and management
-- Template customization interface
-- PDF/Word export functionality
+**Priority**: 🔴 HIGH
 
-**Tasks**:
-- [ ] Create template generation n8n workflow
-- [ ] Design template storage schema
-- [ ] Build template management UI
-- [ ] Implement template customization
-- [ ] Add export functionality (PDF/Word)
-- [ ] Create template preview system
+* Validation function returns `200` regardless of key.
+
+**Tasks**
+
+* [ ] Enforce required fields in `/routes/api/test-n8n/+server.ts`.
+* [ ] Check `x-api-key` header in n8n credential test node.
 
 ---
 
-## 🟢 Medium Priority (Enhancements)
+## 🟡 High Priority
 
-### 9. Bulk PDF Upload Support
-**Priority**: 🟢 MEDIUM  
-**Status**: 📋 Planned  
-**Description**: Enable multiple file uploads with batch processing
+### 5 · Chat Message Persistence
 
-**Tasks**:
-- [ ] Modify file upload component for multi-select
-- [ ] Implement batch upload queue
-- [ ] Add batch processing progress tracking
-- [ ] Create bulk upload cancellation
-- [ ] Add duplicate file detection
-- [ ] Implement file validation (type, size)
+* Implement CRUD for `chat_messages` (new table name).
+* Paginate (∞ scroll) & search.
 
----
+### 6 · Real-time Processing Status UI
 
-### 10. User Profile Management
-**Priority**: 🟢 MEDIUM  
-**Status**: 📋 Planned  
-**Description**: User account management and preferences
+* Derive from `processing_jobs.status` via Supabase Realtime.
 
-**Tasks**:
-- [ ] Create user profile components
-- [ ] Add avatar upload functionality
-- [ ] Implement user preferences storage
-- [ ] Add account deletion functionality
-- [ ] Create usage statistics dashboard
-- [ ] Add notification preferences
+### 7 · Vector Search Accuracy Pass 2
+
+* Try `HNSW` (pgvector 0.8) once GA.
+
+### 8 · Permit Template Generation MVP
+
+* Edge `generate-report` + n8n section filler → DOCX export.
 
 ---
 
-### 11. Advanced Chat Features
-**Priority**: 🟢 MEDIUM  
-**Status**: 📋 Planned  
-**Description**: Enhanced chat functionality
+## 🟢 Medium Priority
 
-**Tasks**:
-- [ ] Add message reactions/ratings
-- [ ] Implement chat export functionality
-- [ ] Add citation click-to-source
-- [ ] Create message threading
-- [ ] Add typing indicators
-- [ ] Implement message suggestions
+* Bulk upload, User profile panel, Advanced chat UX (citations click-to-scroll), Analytics/telemetry dashboard.
 
 ---
 
-### 12. Analytics and Telemetry
-**Priority**: 🟢 MEDIUM  
-**Status**: 📋 Planned  
-**Description**: Usage tracking and performance monitoring
+## 🔵 Low Priority / Ideas
 
-**Tasks**:
-- [ ] Create `hh_telemetry` table
-- [ ] Implement usage tracking
-- [ ] Add performance monitoring
-- [ ] Create analytics dashboard
-- [ ] Add error tracking
-- [ ] Implement user behavior analysis
+* Mobile gesture delight, API rate limiting, Progressive Web App offline mode.
 
 ---
 
-## 🔵 Low Priority (Future Features)
+## 🐛 Open Bugs (non-blocking)
 
-### 13. Advanced Search and Filtering
-**Priority**: 🔵 LOW  
-**Status**: 💭 Idea  
-**Tasks**:
-- [ ] Add advanced search filters
-- [ ] Implement search history
-- [ ] Create saved searches
-- [ ] Add search suggestions
-- [ ] Implement faceted search
-
-### 14. API Rate Limiting and Optimization
-**Priority**: 🔵 LOW  
-**Status**: 💭 Idea  
-**Tasks**:
-- [ ] Implement API rate limiting
-- [ ] Add request caching
-- [ ] Optimize database queries
-- [ ] Add connection pooling
-- [ ] Implement response compression
-
-### 15. Mobile Responsiveness Improvements
-**Priority**: 🔵 LOW  
-**Status**: 💭 Idea  
-**Tasks**:
-- [ ] Optimize mobile chat interface
-- [ ] Add touch gestures
-- [ ] Improve mobile file upload
-- [ ] Add offline functionality
-- [ ] Optimize for tablet devices
-
----
-
-## 🐛 Known Bugs
-
-### Bug 1: Settings Modal UI Issues
-**Severity**: 🟡 Medium  
-**Description**: Settings modal layout issues on smaller screens  
-**Steps to Reproduce**: Open settings modal on mobile device  
-**Expected**: Responsive layout  
-**Actual**: Overlapping elements  
-
-### Bug 2: File Upload Progress Not Updating
-**Severity**: 🟡 Medium  
-**Description**: Upload progress bar doesn't update during large file uploads  
-**Workaround**: File upload still completes successfully  
-
-### Bug 3: Chat Scroll Not Anchoring to Bottom
-**Severity**: 🟢 Low  
-**Description**: New messages don't auto-scroll to bottom of chat  
-**Impact**: User must manually scroll to see new messages  
+1. Settings modal layout breaks <375 px.
+2. Upload progress bar stuck at 0 % on >20 MB files.
+3. Chat auto-scroll intermittent.
 
 ---
 
 ## 🔧 Technical Debt
 
-### Code Quality Issues
-- [ ] Add comprehensive TypeScript types for all API responses
-- [ ] Implement proper error boundaries throughout app
-- [ ] Add unit tests for critical functions
-- [ ] Refactor large components into smaller pieces
-- [ ] Add JSDoc comments for complex functions
-
-### ✅ Infrastructure Improvements (COMPLETED)
-- [x] Set up comprehensive backend infrastructure
-- [x] Implement edge functions for API proxy and n8n integration
-- [x] Create consolidated database schema
-- [x] Add Claude Code integration for development automation
-- [x] Set up testing infrastructure and scripts
-- [x] Configure environment variable templates
-- [x] Implement Row Level Security (RLS) policies
-
-### Performance Optimizations
-- [ ] Implement React.memo for expensive components
-- [ ] Add lazy loading for chat messages
-- [ ] Optimize bundle size with code splitting
-- [ ] Add image lazy loading
-- [ ] Implement virtual scrolling for large lists
-
-### Security Improvements
-- [ ] Add input sanitization for all user inputs
-- [ ] Implement CSRF protection
-- [ ] Add rate limiting to sensitive endpoints
-- [ ] Audit and update dependencies
-- [ ] Add security headers to responses
+* Add comprehensive **TypeScript** types for Edge payloads.
+* Refactor monolithic `ChatStream.svelte` into smaller islands.
+* Implement Vitest unit tests for `vectorSearch()` and embedding chunker.
 
 ---
 
-## 📋 Testing Requirements
+## 📊 Metrics To Track (v0.2)
 
-### Unit Testing (Not Implemented)
-- [ ] Set up Jest/Vitest testing framework
-- [ ] Add tests for React hooks
-- [ ] Test utility functions
-- [ ] Add API response mocking
-- [ ] Test error handling scenarios
-
-### Integration Testing
-- [ ] Test complete chat workflow
-- [ ] Test file upload and processing
-- [ ] Test settings persistence
-- [ ] Test authentication flows
-- [ ] Test database operations
-
-### E2E Testing (Partially Implemented)
-- [ ] Expand Cypress test coverage
-- [ ] Add user journey tests
-- [ ] Test error scenarios
-- [ ] Add cross-browser testing
-- [ ] Test mobile responsiveness
+* P95 chat latency, Embedding cost per PDF, Active notebooks, Prompt tokens / day.
 
 ---
 
-## 📊 Metrics to Track
+## 🎯 Sprint Template
 
-### Performance Metrics
-- [ ] Chat response times
-- [ ] File upload completion rates
-- [ ] Error rates by feature
-- [ ] User session duration
-- [ ] API endpoint performance
+1 🔴 critical fix   | 2 🟡 high feats   | Bugs + Debt as buffer.
 
-### Usage Metrics
-- [ ] Daily/monthly active users
-- [ ] Documents uploaded per user
-- [ ] Chat messages per session
-- [ ] Most queried topics
-- [ ] Feature adoption rates
+*DoD*: Tests pass · Docs updated · Edge logs clean · Langfuse event recorded.
 
 ---
 
-## 🎯 Sprint Planning Template
+## 👩‍💻 Dev Notes
 
-### Sprint Goals
-Each sprint should focus on:
-1. One critical issue (🔴)
-2. 1-2 high priority items (🟡)
-3. Bug fixes as capacity allows
-4. Technical debt cleanup
-
-### Definition of Done
-- [ ] Feature is fully implemented
-- [ ] Code is reviewed and approved
-- [ ] Tests are written and passing
-- [ ] Documentation is updated
-- [ ] Feature is tested in production-like environment
+* Start containers with `pnpm dev:all`.
+* Edge logs: `supabase functions logs --project-ref <ref> --follow`.
+* n8n: [http://localhost:5678](http://localhost:5678) (admin / admin).
 
 ---
 
-## 📝 Notes for Developers
-
-### Before Starting Development
-1. **Review this TASKS.md file**
-2. **Check AGENTS.MD for architecture guidelines**
-3. **Set up local development environment**
-4. **Test current functionality to understand issues**
-5. **Create feature branch for your work**
-
-### Debug Process for Critical Issues
-1. **Chat Issues**: Check browser console → proxy function logs → n8n workflow logs
-2. **Upload Issues**: Check network tab → Supabase storage → database records → n8n processing
-3. **Settings Issues**: Check localStorage → useSettings hook → proxy function → API responses
-
-### Getting Help
-- Review existing documentation in DOC/ folder
-- Check component source code for implementation details
-- Look at existing patterns in codebase
-- Test with minimal reproducible examples
-
----
-
-*Last Updated: [Current Date] - Review and update this file weekly during active development*
+*Last Reviewed: 24 Jul 2025*

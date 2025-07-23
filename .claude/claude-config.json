@@ -1,71 +1,72 @@
 {
-  "name": "town-planner-local-ai",
-  "description": "React/Vite town planner app integrated with local-ai-packaged Docker project",
-  "version": "1.0.0",
-  "claude_code": {
-    "project_type": "web_application",
-    "tech_stack": [
-      "React",
-      "TypeScript",
-      "Vite",
-      "Supabase",
-      "Docker",
-      "n8n",
-      "Tailwind CSS"
-    ],
-    "primary_directories": [
-      "src/",
-      "supabase/",
-      "town-planner-local-package/",
-      "n8n/",
-      "DOC/"
-    ],
-    "ignore_patterns": [
-      "node_modules/",
-      "dist/",
-      "build/",
-      ".git/",
-      "*.log"
-    ],
-    "development_tasks": {
-      "integration_check": {
-        "description": "Check local-ai-packaged integration status",
-        "files": [
-          "docker-compose.yml",
-          ".env",
-          "town-planner-local-package/",
-          "supabase/functions/"
-        ]
-      },
-      "workflow_validation": {
-        "description": "Validate n8n workflows and connections",
-        "files": [
-          "n8n/",
-          "supabase/functions/*/index.ts"
-        ]
-      },
-      "code_review": {
-        "description": "Review React components and API integration",
-        "files": [
-          "src/components/",
-          "src/hooks/",
-          "src/lib/"
-        ]
-      },
-      "database_check": {
-        "description": "Validate database schema and migrations",
-        "files": [
-          "supabase-migration.sql",
-          "supabase/migrations/"
-        ]
-      }
-    },
-    "ai_assistant_rules": [
-      "Always check TASKS.md for current development priorities",
-      "Follow the architecture patterns in AGENTS.md",
-      "Ensure Docker integration follows local-ai-packaged patterns",
-      "Validate n8n workflow connections before code changes",
-      "Check environment variable consistency across all config files"
-    ]
-  }
+"name": "town-planner-rag-system",
+"description": "SvelteKit/Vite town‑planning app integrated with Supabase edge functions, n8n workflows, and local LLM providers (Ollama / OpenAI / Gemini)",
+"version": "2.0.0",
+"claude\_code": {
+"project\_type": "web\_application",
+"tech\_stack": \[
+"SvelteKit",
+"TypeScript",
+"Vite",
+"Supabase (Postgres + Storage + Edge Functions)",
+"n8n",
+"Tailwind CSS",
+"Ollama / OpenAI / Gemini"
+],
+"primary\_directories": \[
+"src/",
+"supabase/",
+"n8n-workflows.json",
+"DOC/",
+"scripts/"
+],
+"ignore\_patterns": \[
+"node\_modules/",
+"dist/",
+"build/",
+".git/",
+"*.log"
+],
+"development\_tasks": {
+"integration\_check": {
+"description": "Verify local CLI integration (Supabase, n8n, Ollama). Ensure env vars, edge-function deployment, and webhook connectivity are correct.",
+"files": \[
+"supabase/",
+"supabase/migrations/",
+"supabase/functions/",
+"n8n-workflows.json",
+".env.local"
+]
+},
+"workflow\_validation": {
+"description": "Validate n8n workflows and Supabase triggers/webhooks.",
+"files": \[
+"n8n-workflows.json",
+"supabase/functions/*/index.ts"
+]
+},
+"code\_review": {
+"description": "Review Svelte components, stores, and API integration for best practices.",
+"files": \[
+"src/components/",
+"src/routes/",
+"src/lib/"
+]
+},
+"database\_check": {
+"description": "Validate Supabase schema migrations (v2.0) and RLS policies.",
+"files": \[
+"supabase/migrations/",
+"supabase/migrations/\*"
+]
+}
+},
+"ai\_assistant\_rules": \[
+"Always consult TASKS.md for current priorities.",
+"Follow architecture guidelines in AGENTS.md.",
+"Ensure edge functions and n8n webhooks are connected before merging code.",
+"Validate environment variable consistency across .env.local, deployment scripts, and CI workflows.",
+"Write code and docs in strict TypeScript / Markdown style guidelines."
+]
+}
 }

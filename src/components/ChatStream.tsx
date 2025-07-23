@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import Lottie from "lottie-react";
 import { sendChat } from "@/lib/api";
 
+
 // Load thinking animation from public folder
 const useThinkingAnimation = () => {
   const [animationData, setAnimationData] = useState(null);
