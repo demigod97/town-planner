@@ -422,14 +422,27 @@ export async function uploadFile(file: File, notebookId: string, userQuery?: str
 // LLM Connection Testing
 // =====================================================
 
-export async function testLLMConnection(settings: LLMSettings): Promise<boolean> {
+export async function testLLMConnection(provider: string, settings: LLMSettings): Promise<{ success: boolean }> {
   try {
     // For now, return true as a placeholder
     // This can be expanded to actually test the connection
-    console.log('Testing LLM connection with settings:', settings)
-    return true
+    console.log('Testing LLM connection with provider:', provider, 'settings:', settings)
+    return { success: true }
   } catch (error) {
     console.error('LLM connection test failed:', error)
-    return false
+    return { success: false }
   }
+}
+
+// Update user settings
+export async function updateUserSettings(settings: LLMSettings): Promise<void> {
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) throw new Error('Not authenticated')
+
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({ preferences: settings })
+    .eq('id', user.id)
+
+  if (error) throw error
 }
