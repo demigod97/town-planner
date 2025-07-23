@@ -78,20 +78,25 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
       try {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
         
+        console.log('Starting file upload:', file.name);
         const result = await handleAsyncError(
           () => uploadFile(file, notebookId),
           { operation: 'file_upload', fileName: file.name, fileSize: file.size }
         );
         
+        console.log('File upload completed:', result);
         toast({
           title: "Upload successful",
           description: `${file.name} has been uploaded and is being processed.`,
         });
       } catch (error) {
         // Error already handled by handleAsyncError
+        console.error('File upload failed:', error);
         toast({
           title: "Upload failed",
-          description: error.message || `Failed to upload ${file.name}. Please try again.`,
+          description: error.message?.includes('environment') 
+            ? "Server configuration issue. Please contact support."
+            : error.message || `Failed to upload ${file.name}. Please try again.`,
           variant: "destructive",
         });
       } finally {
