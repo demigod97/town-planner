@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { getDefaultNotebook } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -15,12 +15,24 @@ import { useErrorHandler } from "@/hooks/useErrorHandler";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, loading } = useSession();
+  const { user, loading, initialized } = useSession();
   const [sessionId, setSessionId] = useState<string>("");
   const [notebookId, setNotebookId] = useState<string>("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const { handleAsyncError } = useErrorHandler();
+  const navigate = useNavigate();
+
+  // Redirect to login if not authenticated (after initialization)
+  useEffect(() => {
+    if (initialized && !loading && !user) {
+      console.log('User not authenticated, redirecting to login');
+      navigate('/login', { 
+        state: { from: { pathname: window.location.pathname + window.location.search } },
+        replace: true 
+      });
+    }
+  }, [initialized, loading, user, navigate]);
 
   useEffect(() => {
     const initializeNotebook = async () => {
@@ -37,7 +49,7 @@ const Index = () => {
     };
 
     // Only initialize notebook when user is authenticated
-    if (!loading && user) {
+    if (initialized && !loading && user) {
       initializeNotebook();
     }
 
@@ -49,33 +61,23 @@ const Index = () => {
       setSessionId(newSessionId);
       setSearchParams({ sessionId: newSessionId });
     }
-  }, [searchParams, setSearchParams, user, loading]);
+  }, [searchParams, setSearchParams, user, loading, initialized]);
 
   // Show loading state while authentication is in progress
-  if (loading) {
+  if (loading || !initialized) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>{!initialized ? 'Initializing...' : 'Loading...'}</p>
         </div>
       </div>
     );
   }
 
-  // Show login prompt if user is not authenticated
+  // Don't render anything if not authenticated - redirect will handle it
   if (!user) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-          <p className="text-muted-foreground mb-4">Please log in to access the application.</p>
-          <Button onClick={() => window.location.href = '/login'}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // Show loading state while notebook is being initialized

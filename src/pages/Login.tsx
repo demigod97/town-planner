@@ -1,53 +1,91 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { supabase } from '@/lib/api';
+import { useSession } from '@/hooks/useSession';
 import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const { user, loading, signIn, signUp } = useSession();
+
+  // Get the intended destination from location state, default to home
+  const from = location.state?.from?.pathname || '/';
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      console.log('User already authenticated, redirecting to:', from);
+      navigate(from, { replace: true });
+    }
+  }, [user, loading, navigate, from]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
+        const { data, error: signUpError } = await signUp(email, password);
+        
+        if (signUpError) {
+          throw signUpError;
+        }
+        
         toast({
           title: "Account created successfully",
-          description: "You can now sign in with your credentials.",
+          description: "Please check your email to verify your account, then sign in.",
         });
+        
         setIsSignUp(false);
+        setEmail('');
+        setPassword('');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        const { data, error: signInError } = await signIn(email, password);
+        
+        if (signInError) {
+          throw signInError;
+        }
+        
+        toast({
+          title: "Welcome back!",
+          description: "You have been successfully signed in.",
         });
-        if (error) throw error;
-        navigate('/');
+        
+        // Navigation will be handled by the useEffect above
       }
     } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      console.error('Authentication error:', error);
+      setError(error.message || 'An error occurred during authentication');
     }
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -74,6 +112,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -85,6 +124,8 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={loading}
+                minLength={6}
               />
             </div>
             {error && (
@@ -101,6 +142,7 @@ const Login = () => {
               variant="link"
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-sm"
+              disabled={loading}
             >
               {isSignUp 
                 ? 'Already have an account? Sign in'

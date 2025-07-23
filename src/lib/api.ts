@@ -547,7 +547,7 @@ export async function downloadReport(reportId: string): Promise<string> {
 // =====================================================
 
 export async function createNotebook(
-  name: string,
+  title: string,
   projectType: string,
   clientDetails?: any
 ): Promise<string> {
@@ -558,12 +558,10 @@ export async function createNotebook(
     .from('notebooks')
     .insert({
       user_id: userId,
-      name,
+      title: title,
       project_type: projectType,
       client_name: clientDetails?.clientName,
       address: clientDetails?.address,
-      lot_details: clientDetails?.lotDetails,
-      council_area: clientDetails?.councilArea,
       contact_email: clientDetails?.contactEmail,
       contact_phone: clientDetails?.contactPhone,
       metadata: clientDetails?.metadata || {}
@@ -784,7 +782,7 @@ export async function getDefaultNotebook(): Promise<string> {
     .from('notebooks')
     .select('id')
     .eq('user_id', user.id)
-    .eq('name', 'Default Notebook')
+    .eq('title', 'Default Notebook')
     .single();
 
   if (notebooks?.id) {
@@ -792,7 +790,8 @@ export async function getDefaultNotebook(): Promise<string> {
   }
 
   // Create default notebook
-  return await createNotebook('Default Notebook', 'general');
+  const notebookId = await createNotebook('Default Notebook', 'general');
+  return notebookId;
 }
 
 // Initialize chat session with default notebook

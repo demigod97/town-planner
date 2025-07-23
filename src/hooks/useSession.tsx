@@ -6,7 +6,9 @@ interface SessionContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string) => Promise<{ error: any }>;
+  initialized: boolean;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signUp: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
 }
 
