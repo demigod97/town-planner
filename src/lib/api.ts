@@ -777,7 +777,6 @@ export async function getDefaultNotebook(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-      name: 'Default Notebook',
   const { data: notebooks } = await supabase
     .from('notebooks')
     .select('id')
