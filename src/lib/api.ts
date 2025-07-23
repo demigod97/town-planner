@@ -417,3 +417,19 @@ export async function uploadFile(file: File, notebookId: string, userQuery?: str
     throw error
   }
 }
+
+// =====================================================
+// LLM Connection Testing
+// =====================================================
+
+export async function testLLMConnection(settings: LLMSettings): Promise<boolean> {
+  try {
+    // For now, return true as a placeholder
+    // This can be expanded to actually test the connection
+    console.log('Testing LLM connection with settings:', settings)
+    return true
+  } catch (error) {
+    console.error('LLM connection test failed:', error)
+    return false
+  }
+}
