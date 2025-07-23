@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { getDefaultNotebook } from "@/lib/api";
+import { useSession } from "@/hooks/useSession";
 import { TopBar } from "@/components/TopBar";
 import { SourcesSidebar } from "@/components/SourcesSidebar";
 import { ChatStream } from "@/components/ChatStream";
@@ -12,6 +13,7 @@ import { FileText, Settings } from "lucide-react";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user, loading } = useSession();
   const [sessionId, setSessionId] = useState<string>("");
   const [notebookId, setNotebookId] = useState<string>("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -27,7 +29,10 @@ const Index = () => {
       }
     };
 
-    initializeNotebook();
+    // Only initialize notebook when user is authenticated
+    if (!loading && user) {
+      initializeNotebook();
+    }
 
     const currentSessionId = searchParams.get("sessionId");
     if (currentSessionId) {
@@ -37,10 +42,45 @@ const Index = () => {
       setSessionId(newSessionId);
       setSearchParams({ sessionId: newSessionId });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, user, loading]);
 
+  // Show loading state while authentication is in progress
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if user is not authenticated
+  if (!user) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-muted-foreground mb-4">Please log in to access the application.</p>
+          <Button onClick={() => window.location.href = '/login'}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while notebook is being initialized
   if (!sessionId || !notebookId) {
-    return <div>Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Initializing workspace...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
