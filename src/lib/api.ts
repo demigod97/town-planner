@@ -220,6 +220,25 @@ function performSemanticChunking(content: string, maxChunkSize: number = 1500) {
   return chunks
 }
 
+// Determine chunk metadata
+async function determineChunkMetadata(chunkContent: string, sectionTitle: string, discoveredFields: any[]) {
+  const relevantFields = []
+  
+  for (const field of discoveredFields) {
+    if (chunkContent.toLowerCase().includes(field.value?.toLowerCase()) ||
+        sectionTitle.toLowerCase().includes(field.standardized_field_name.toLowerCase())) {
+      relevantFields.push(field.standardized_field_name)
+    }
+  }
+  
+  // Always include location fields for chunks mentioning addresses
+  if (chunkContent.match(/\d+\s+\w+\s+(street|road|avenue|drive|lane)/i)) {
+    relevantFields.push('address', 'lot_details')
+  }
+  
+  return [...new Set(relevantFields)]
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -278,6 +297,10 @@ serve(async (req) => {
 
     let parsedContent = ''
     let parseMetadata = {}
+    let discoveryResult = {
+      discovered_fields: [],
+      new_field_suggestions: []
+    }
 
     // Parse PDF based on provider
     if (llm_provider === 'llamacloud') {
@@ -286,32 +309,59 @@ serve(async (req) => {
         console.warn('LLAMACLOUD_API_KEY not configured, falling back to basic extraction')
         parsedContent = `# Document Content\n\nNote: LlamaCloud API key not configured. Using basic extraction.\n\nFile: ${file_path}\nSize: Processing...`
       } else {
-      // Use LlamaCloud for superior PDF parsing
-      const llamaResponse = await fetch('https://api.llamaindex.ai/api/parsing/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LLM_PROVIDERS.llamacloud.apiKey()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          file_url: signedUrlData.signedUrl,
-          parsing_instruction: 'Extract all text content in markdown format with clear section headings. Preserve tables and lists.',
-          result_type: 'markdown',
-          invalidate_cache: false
-        })
-      })
-
-      if (!llamaResponse.ok) throw new Error('LlamaCloud parsing failed')
-      
+        // Use LlamaCloud for superior PDF parsing
         try {
           const llamaResponse = await fetch('https://api.llamaindex.ai/api/parsing/upload', {
             method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${llamaApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              file_url: signedUrlData.signedUrl,
+              parsing_instruction: 'Extract all text content in markdown format with clear section headings. Preserve tables and lists.',
+              result_type: 'markdown',
+              invalidate_cache: false
+            })
+          })
 
-        await new Promise(resolve => setTimeout(resolve, 10000)) // 10 seconds
+          if (!llamaResponse.ok) {
+            const errorText = await llamaResponse.text()
+            throw new Error(`LlamaCloud parsing failed: ${llamaResponse.status} ${errorText}`)
+          }
+          
+          const llamaData = await llamaResponse.json()
+          const jobId = llamaData.id
+
+          // Poll for completion
+          let attempts = 0
+          while (attempts < 30) { // 5 minutes max
+            const statusResponse = await fetch(`https://api.llamaindex.ai/api/parsing/job/${jobId}`, {
+              headers: {
+                'Authorization': `Bearer ${llamaApiKey}`,
+              }
+            })
+
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
+              if (statusData.status === 'SUCCESS') {
+                parsedContent = statusData.result.markdown
+                break
+              } else if (statusData.status === 'ERROR') {
+                throw new Error('LlamaCloud parsing failed')
+              }
+            }
+
+            attempts++
+            await new Promise(resolve => setTimeout(resolve, 10000)) // 10 seconds
+          }
+
+          if (!parsedContent) throw new Error('LlamaCloud processing timeout')
+        } catch (llamaError) {
+          console.error('LlamaCloud error:', llamaError)
+          parsedContent = `# Document Content\n\nNote: LlamaCloud processing failed. Using basic extraction.\n\nFile: ${file_path}\nProvider: ${llm_provider}\nProcessed at: ${new Date().toISOString()}`
+        }
       }
-
-      if (!parsedContent) throw new Error('LlamaCloud processing timeout')
-      
     } else {
       // Fallback: Download and extract text (basic extraction)
       // In production, you'd want to use a proper PDF parsing library
@@ -329,11 +379,19 @@ serve(async (req) => {
       .order('occurrence_count', { ascending: false })
 
     // Discover metadata fields using AI
-    const discoveryResult = await discoverMetadataFields(
-      parsedContent,
-      metadataSchema || [],
-      llm_provider === 'llamacloud' ? 'ollama' : llm_provider // Use configured LLM for metadata
-    )
+    try {
+      discoveryResult = await discoverMetadataFields(
+        parsedContent,
+        metadataSchema || [],
+        llm_provider === 'llamacloud' ? 'ollama' : llm_provider // Use configured LLM for metadata
+      )
+    } catch (discoveryError) {
+      console.error('Metadata discovery failed:', discoveryError)
+      discoveryResult = {
+        discovered_fields: [],
+        new_field_suggestions: []
+      }
+    }
 
     // Create PDF metadata record
     const { data: pdfMetadata, error: pdfMetadataError } = await supabase
@@ -364,19 +422,23 @@ serve(async (req) => {
 
         if (similarFields?.length === 0) {
           // Create new schema field if it doesn't exist
-          const { data: newSchema } = await supabase
-            .from('metadata_schema')
-            .insert({
-              field_name: field.standardized_field_name,
-              field_type: 'text', // Default, could be enhanced
-              field_category: 'general',
-              display_name: field.raw_field_name,
-              occurrence_count: 1
-            })
-            .select()
-            .single()
+          try {
+            const { data: newSchema } = await supabase
+              .from('metadata_schema')
+              .insert({
+                field_name: field.standardized_field_name,
+                field_type: 'text', // Default, could be enhanced
+                field_category: 'general',
+                display_name: field.raw_field_name,
+                occurrence_count: 1
+              })
+              .select()
+              .single()
 
-          schemaFieldId = newSchema?.id
+            schemaFieldId = newSchema?.id
+          } catch (schemaError) {
+            console.error('Failed to create schema field:', schemaError)
+          }
         } else {
           schemaFieldId = similarFields?.[0]?.id
         }
@@ -384,26 +446,22 @@ serve(async (req) => {
 
       if (schemaFieldId) {
         // Store the field value
-        await supabase
-          .from('pdf_metadata_values')
-          .insert({
-            pdf_metadata_id: pdfMetadata.id,
-            schema_field_id: schemaFieldId,
-            field_value: field.value,
-            field_value_normalized: field.value?.toLowerCase().trim(),
-            confidence_score: field.confidence,
-            extraction_method: 'ai',
-            extraction_context: field.extraction_context,
-              'Authorization': `Bearer ${llamaApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              file_url: signedUrlData.signedUrl,
-              parsing_instruction: 'Extract all text content in markdown format with clear section headings. Preserve tables and lists.',
-              result_type: 'markdown',
-              invalidate_cache: false
+        try {
+          await supabase
+            .from('pdf_metadata_values')
+            .insert({
+              pdf_metadata_id: pdfMetadata.id,
+              schema_field_id: schemaFieldId,
+              field_value: field.value,
+              field_value_normalized: field.value?.toLowerCase().trim(),
+              confidence_score: field.confidence,
+              extraction_method: 'ai',
+              extraction_context: field.extraction_context,
+              page_number: field.page_number
             })
-          })
+        } catch (valueError) {
+          console.error('Failed to store metadata value:', valueError)
+        }
 
         // Update schema occurrence count
         await supabase.rpc('increment', { 
@@ -421,32 +479,6 @@ serve(async (req) => {
     // Store chunks in database
     const chunkRecords = []
     for (const chunk of chunks) {
-      const { data: chunkRecord } = await supabase
-        .from('document_chunks')
-        .insert({
-          source_id,
-          notebook_id,
-          content: chunk.content,
-          chunk_index: chunk.chunk_index,
-          section_title: chunk.section_title,
-          chunk_type: chunk.chunk_type,
-          word_count: chunk.metadata?.word_count,
-          char_count: chunk.metadata?.char_count,
-          metadata: chunk.metadata
-        })
-        .select()
-        .single()
-  
-          if (!llamaResponse.ok) {
-            const errorText = await llamaResponse.text()
-            throw new Error(`LlamaCloud parsing failed: ${llamaResponse.status} ${errorText}`)
-          }
-          
-          const llamaData = await llamaResponse.json()
-          const jobId = llamaData.id
-  
-          // Poll for completion
-          let attempts = 0
       try {
         const { data: chunkRecord } = await supabase
           .from('document_chunks')
@@ -469,15 +501,12 @@ serve(async (req) => {
         }
       } catch (chunkError) {
         console.error('Failed to store chunk:', chunkError)
-              }
-        chunkRecord.section_title || '',
-  
-            attempts++
-            await new Promise(resolve => setTimeout(resolve, 10000)) // 10 seconds
+      }
+
       try {
         const relevantFields = await determineChunkMetadata(
-          chunkRecord.content,
-          chunkRecord.section_title || '',
+          chunk.content,
+          chunk.section_title || '',
           discoveryResult.discovered_fields || []
         )
 
@@ -486,7 +515,19 @@ serve(async (req) => {
             f.standardized_field_name === fieldName
           )
           
+          if (field) {
+            // Store chunk-field relationship
+            await supabase
+              .from('chunk_metadata_relations')
+              .insert({
+                chunk_id: chunkRecords[chunkRecords.length - 1]?.id,
+                metadata_field_id: field.existing_field_id,
+                relevance_score: field.confidence
+              })
+          }
         }
+      } catch (relationError) {
+        console.error('Failed to store chunk metadata relations:', relationError)
       }
     }
 
@@ -542,67 +583,33 @@ serve(async (req) => {
     
     // Update source with error status
     if (req.body) {
-      const { source_id } = await req.json()
-    for (const field of discoveryResult.discovered_fields || []) {
-      parsedContent = `# Document Content\n\nNote: Basic extraction used. For better results, configure LlamaCloud provider.\n\nFile: ${file_path}\nProvider: ${llm_provider}\nProcessed at: ${new Date().toISOString()}`
-        .update({
-          processing_status: 'failed',
-          processing_completed_at: new Date().toISOString(),
-          processing_error: error.message
-        })
-        .eq('id', source_id)
+      try {
+        const { source_id } = await req.json()
+        if (source_id) {
+          await supabase
+            .from('sources')
+            .update({
+              processing_status: 'failed',
+              processing_completed_at: new Date().toISOString(),
+              processing_error: error.message
+            })
+            .eq('id', source_id)
+        }
+      } catch (updateError) {
+        console.error('Failed to update error status:', updateError)
+      }
     }
     
     return new Response(
       JSON.stringify({
-          try {
-            const { data: newSchema } = await supabase
-              .from('metadata_schema')
-              .insert({
-                field_name: field.standardized_field_name,
-                field_type: 'text', // Default, could be enhanced
-                field_category: 'general',
-                display_name: field.raw_field_name,
-                occurrence_count: 1
-              })
-              .select()
-              .single()
-
-            schemaFieldId = newSchema?.id
-          } catch (schemaError) {
-            console.error('Failed to create schema field:', schemaError)
-          }
-      discoveryResult = {
-        discovered_fields: [],
-        new_field_suggestions: []
+        success: false,
+        error: error.message,
+        message: 'PDF processing failed'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
       }
-    }
+    )
   }
 })
-        try {
-          await supabase
-            .from('pdf_metadata_values')
-            .insert({
-              pdf_metadata_id: pdfMetadata.id,
-              schema_field_id: schemaFieldId,
-              field_value: field.value,
-              field_value_normalized: field.value?.toLowerCase().trim(),
-              confidence_score: field.confidence,
-              extraction_method: 'ai',
-              extraction_context: field.extraction_context,
-              page_number: field.page_number
-            })
-        } catch (valueError) {
-          console.error('Failed to store metadata value:', valueError)
-        }
-      relevantFields.push(field.standardized_field_name)
-    }
-  }
-  
-  // Always include location fields for chunks mentioning addresses
-  if (chunkContent.match(/\d+\s+\w+\s+(street|road|avenue|drive|lane)/i)) {
-    relevantFields.push('address', 'lot_details')
-  }
-  
-  return [...new Set(relevantFields)]
-}
