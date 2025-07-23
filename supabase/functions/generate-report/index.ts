@@ -1,3 +1,8 @@
+// =====================================================
+// Edge Function 3: generate-report
+// File: supabase/functions/generate-report/index.ts
+// =====================================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -17,52 +22,71 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { notebook_id, template_id, topic, address, additional_context } = await req.json()
+    const { 
+      notebook_id, 
+      template_id, 
+      topic, 
+      address, 
+      additional_context,
+      llm_provider = 'ollama',
+      llm_config = {},
+      embedding_provider = 'ollama'
+    } = await req.json()
 
     if (!notebook_id || !template_id || !topic) {
       throw new Error('Missing required parameters: notebook_id, template_id, topic')
     }
 
-    // 1. Create report generation record
+    console.log(`Starting report generation with ${llm_provider}`)
+
+    // Get user ID from auth header
+    const authHeader = req.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token!)
+    
+    if (userError || !user) throw new Error('Unauthorized')
+
+    // Create report generation record
     const { data: reportGeneration, error: reportError } = await supabase
       .from('report_generations')
       .insert({
+        user_id: user.id,
         notebook_id,
         template_id,
+        title: `${topic} Report`,
         topic,
         address,
         additional_context,
+        llm_provider,
+        llm_model: llm_config.model,
+        llm_config,
         status: 'processing',
         started_at: new Date().toISOString()
       })
       .select()
       .single()
 
-    if (reportError) {
-      throw new Error(`Failed to create report generation: ${reportError.message}`)
-    }
+    if (reportError) throw reportError
 
-    // 2. Get report template structure
+    // Get report template
     const { data: template, error: templateError } = await supabase
       .from('report_templates')
-      .select('structure')
+      .select('*')
       .eq('id', template_id)
       .single()
 
-    if (templateError) {
-      throw new Error(`Failed to get template: ${templateError.message}`)
-    }
+    if (templateError) throw templateError
 
     const templateStructure = template.structure.sections
 
-    // 3. Generate queries for each section/subsection
+    // Generate queries for each section
     const queries = []
     for (const section of templateStructure) {
       // Main section query
       queries.push({
         section_name: section.name,
         subsection_name: null,
-        query: `Tell me about "${section.title}" for ${topic}${address ? ` at ${address}` : ''}`,
+        query: `${section.title} for ${topic}${address ? ` at ${address}` : ''}${additional_context ? `. Context: ${additional_context}` : ''}`,
         section_order: section.order * 10
       })
 
@@ -72,28 +96,28 @@ serve(async (req) => {
           queries.push({
             section_name: section.name,
             subsection_name: subsection.name,
-            query: `Provide information about "${subsection.title}" under "${section.title}" for ${topic}${address ? ` at ${address}` : ''}`,
+            query: `${subsection.title} (under ${section.title}) for ${topic}${address ? ` at ${address}` : ''}`,
             section_order: section.order * 10 + index + 1
           })
         })
       }
     }
 
-    // 4. Store report sections
-    const sectionPromises = queries.map(q => 
-      supabase.from('report_sections').insert({
-        report_generation_id: reportGeneration.id,
-        section_name: q.section_name,
-        subsection_name: q.subsection_name,
-        query_used: q.query,
-        section_order: q.section_order,
-        status: 'pending'
-      })
-    )
+    // Store report sections
+    for (const query of queries) {
+      await supabase
+        .from('report_sections')
+        .insert({
+          report_generation_id: reportGeneration.id,
+          section_name: query.section_name,
+          subsection_name: query.subsection_name,
+          query_used: query.query,
+          section_order: query.section_order,
+          status: 'pending'
+        })
+    }
 
-    await Promise.all(sectionPromises)
-
-    // 5. Trigger background processing
+    // Trigger report processing
     const processingUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/process-report-sections`
     
     fetch(processingUrl, {
@@ -104,10 +128,13 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         report_generation_id: reportGeneration.id,
-        queries
+        queries,
+        llm_provider,
+        llm_config,
+        embedding_provider
       })
     }).catch(error => {
-      console.error('Background processing error:', error)
+      console.error('Failed to trigger report processing:', error)
     })
 
     return new Response(
@@ -115,7 +142,8 @@ serve(async (req) => {
         success: true,
         report_generation_id: reportGeneration.id,
         message: 'Report generation started',
-        sections_count: queries.length
+        sections_count: queries.length,
+        estimated_time_minutes: Math.ceil(queries.length * 0.5)
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -138,3 +166,4 @@ serve(async (req) => {
     )
   }
 })
+

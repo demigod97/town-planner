@@ -1,4 +1,173 @@
 // =====================================================
+// Edge Function 3: generate-report
+// File: supabase/functions/generate-report/index.ts
+// =====================================================
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { 
+      notebook_id, 
+      template_id, 
+      topic, 
+      address, 
+      additional_context,
+      llm_provider = 'ollama',
+      llm_config = {},
+      embedding_provider = 'ollama'
+    } = await req.json()
+
+    if (!notebook_id || !template_id || !topic) {
+      throw new Error('Missing required parameters: notebook_id, template_id, topic')
+    }
+
+    console.log(`Starting report generation with ${llm_provider}`)
+
+    // Get user ID from auth header
+    const authHeader = req.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token!)
+    
+    if (userError || !user) throw new Error('Unauthorized')
+
+    // Create report generation record
+    const { data: reportGeneration, error: reportError } = await supabase
+      .from('report_generations')
+      .insert({
+        user_id: user.id,
+        notebook_id,
+        template_id,
+        title: `${topic} Report`,
+        topic,
+        address,
+        additional_context,
+        llm_provider,
+        llm_model: llm_config.model,
+        llm_config,
+        status: 'processing',
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (reportError) throw reportError
+
+    // Get report template
+    const { data: template, error: templateError } = await supabase
+      .from('report_templates')
+      .select('*')
+      .eq('id', template_id)
+      .single()
+
+    if (templateError) throw templateError
+
+    const templateStructure = template.structure.sections
+
+    // Generate queries for each section
+    const queries = []
+    for (const section of templateStructure) {
+      // Main section query
+      queries.push({
+        section_name: section.name,
+        subsection_name: null,
+        query: `${section.title} for ${topic}${address ? ` at ${address}` : ''}${additional_context ? `. Context: ${additional_context}` : ''}`,
+        section_order: section.order * 10
+      })
+
+      // Subsection queries
+      if (section.subsections) {
+        section.subsections.forEach((subsection: any, index: number) => {
+          queries.push({
+            section_name: section.name,
+            subsection_name: subsection.name,
+            query: `${subsection.title} (under ${section.title}) for ${topic}${address ? ` at ${address}` : ''}`,
+            section_order: section.order * 10 + index + 1
+          })
+        })
+      }
+    }
+
+    // Store report sections
+    for (const query of queries) {
+      await supabase
+        .from('report_sections')
+        .insert({
+          report_generation_id: reportGeneration.id,
+          section_name: query.section_name,
+          subsection_name: query.subsection_name,
+          query_used: query.query,
+          section_order: query.section_order,
+          status: 'pending'
+        })
+    }
+
+    // Trigger report processing
+    const processingUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/process-report-sections`
+    
+    fetch(processingUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        report_generation_id: reportGeneration.id,
+        queries,
+        llm_provider,
+        llm_config,
+        embedding_provider
+      })
+    }).catch(error => {
+      console.error('Failed to trigger report processing:', error)
+    })
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        report_generation_id: reportGeneration.id,
+        message: 'Report generation started',
+        sections_count: queries.length,
+        estimated_time_minutes: Math.ceil(queries.length * 0.5)
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
+
+  } catch (error) {
+    console.error('Error generating report:', error)
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    )
+  }
+})
+
+// =====================================================
 // Edge Function 4: process-report-sections
 // File: supabase/functions/process-report-sections/index.ts
 // =====================================================
@@ -362,3 +531,194 @@ Write the section content now:`
   }
 })
 
+// =====================================================
+// Edge Function 5: generate-embeddings
+// File: supabase/functions/generate-embeddings/index.ts
+// =====================================================
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { 
+      chunk_ids,
+      notebook_id,
+      source_id,
+      embedding_provider = 'ollama'
+    } = await req.json()
+
+    if (!chunk_ids || !Array.isArray(chunk_ids)) {
+      throw new Error('chunk_ids array is required')
+    }
+
+    console.log(`Generating embeddings for ${chunk_ids.length} chunks using ${embedding_provider}`)
+
+    // Get chunks
+    const { data: chunks, error: chunksError } = await supabase
+      .from('document_chunks')
+      .select('*')
+      .in('id', chunk_ids)
+
+    if (chunksError) throw chunksError
+
+    let successCount = 0
+    let errorCount = 0
+
+    // Process each chunk
+    for (const chunk of chunks) {
+      try {
+        // Generate embedding
+        const embedding = await generateEmbedding(chunk.content, embedding_provider)
+        
+        // Store embedding
+        const { error: embedError } = await supabase
+          .from('chunk_embeddings')
+          .upsert({
+            chunk_id: chunk.id,
+            notebook_id: chunk.notebook_id,
+            embedding: `[${embedding.join(',')}]`,
+            embedding_model: `${embedding_provider}-${getModelName(embedding_provider)}`,
+            embedding_dimension: embedding.length,
+            metadata: {
+              section_title: chunk.section_title,
+              chunk_type: chunk.chunk_type
+            }
+          })
+
+        if (embedError) throw embedError
+
+        // Update chunk status
+        await supabase
+          .from('document_chunks')
+          .update({
+            embedding_generated: true,
+            embedding_model: `${embedding_provider}-${getModelName(embedding_provider)}`,
+            embedding_generated_at: new Date().toISOString()
+          })
+          .eq('id', chunk.id)
+
+        successCount++
+      } catch (error) {
+        console.error(`Failed to generate embedding for chunk ${chunk.id}:`, error)
+        errorCount++
+      }
+    }
+
+    // Update source embedding count
+    if (source_id) {
+      await supabase
+        .from('sources')
+        .update({
+          embedding_count: successCount
+        })
+        .eq('id', source_id)
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        chunks_processed: chunks.length,
+        embeddings_generated: successCount,
+        errors: errorCount,
+        embedding_provider
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
+
+  } catch (error) {
+    console.error('Error generating embeddings:', error)
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    )
+  }
+})
+
+function getModelName(provider: string): string {
+  switch (provider) {
+    case 'ollama': return 'nomic-embed-text'
+    case 'openai': return 'text-embedding-3-small'
+    case 'gemini': return 'embedding-001'
+    default: return 'unknown'
+  }
+}
+
+// Reuse the generateEmbedding function from batch-vector-search
+async function generateEmbedding(text: string, provider: string = 'ollama') {
+  // Implementation same as in batch-vector-search
+  switch (provider) {
+    case 'ollama':
+      const ollamaUrl = `${Deno.env.get('OLLAMA_BASE_URL') || 'http://localhost:11434'}/api/embeddings`
+      const ollamaResponse = await fetch(ollamaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'nomic-embed-text:latest',
+          prompt: text
+        })
+      })
+      if (!ollamaResponse.ok) throw new Error('Ollama embedding failed')
+      const ollamaData = await ollamaResponse.json()
+      return ollamaData.embedding
+
+    case 'openai':
+      const openaiResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-3-small',
+          input: text
+        })
+      })
+      if (!openaiResponse.ok) throw new Error('OpenAI embedding failed')
+      const openaiData = await openaiResponse.json()
+      return openaiData.data[0].embedding
+
+    case 'gemini':
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'models/embedding-001',
+            content: { parts: [{ text }] }
+          })
+        }
+      )
+      if (!geminiResponse.ok) throw new Error('Gemini embedding failed')
+      const geminiData = await geminiResponse.json()
+      return geminiData.embedding.values
+
+    default:
+      throw new Error(`Unsupported embedding provider: ${provider}`)
+  }
+}
