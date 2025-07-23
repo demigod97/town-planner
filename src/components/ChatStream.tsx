@@ -93,10 +93,11 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
     
+    const messageContent = inputValue.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
-      content: inputValue
+      content: messageContent
     };
     
     setMessages(m => [...m, userMessage]);
@@ -113,23 +114,33 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
     
     try {
       const res = await handleAsyncError(
-        () => sendChat(sessionId, inputValue),
-        { operation: 'send_chat_message', sessionId, messageLength: inputValue.length }
+        () => sendChat(sessionId, messageContent),
+        { operation: 'send_chat_message', sessionId, messageLength: messageContent.length }
       );
+      
       // Remove thinking message and add actual response
-      setMessages(m => [...m.slice(0, -1), 
-        { id: res.userMessage.id, type: 'user', content: res.userMessage.content },
-        { id: res.aiMessage.id, type: 'assistant', content: res.aiMessage.content }
-      ]);
+      setMessages(m => {
+        const withoutThinking = m.slice(0, -1);
+        return [
+          ...withoutThinking,
+          { id: res.aiMessage.id, type: 'assistant', content: res.aiMessage.content }
+        ];
+      });
     } catch (error) {
       // Error already handled by handleAsyncError
-      setMessages(m => [...m.slice(0, -1), {
-        id: Date.now().toString(),
-        type: "assistant",
-        content: error.message?.includes('offline') 
-          ? "You appear to be offline. Please check your connection and try again."
-          : "Sorry, I encountered an error. Please try again."
-      }]);
+      setMessages(m => {
+        const withoutThinking = m.slice(0, -1);
+        return [
+          ...withoutThinking,
+          {
+            id: Date.now().toString(),
+            type: "assistant",
+            content: error.message?.includes('offline') 
+              ? "You appear to be offline. Please check your connection and try again."
+              : "Sorry, I encountered an error processing your message. Please try again."
+          }
+        ];
+      });
     } finally {
       setIsLoading(false);
     }

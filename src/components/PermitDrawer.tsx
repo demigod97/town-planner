@@ -43,7 +43,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
     } catch (error) {
       toast({
         title: "Validation Error",
-        description: error.message,
+        description: error.message || "Please fill in all required fields",
         variant: "destructive",
       });
       return;
@@ -65,7 +65,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
       
       toast({
         title: "Template ready",
-        description: "Your permit template has been generated successfully",
+        description: "Your permit template has been generated and sent to n8n for processing.",
       });
       
       if (onTemplateCreated) {
@@ -77,7 +77,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
       // Error already handled by handleAsyncError
       toast({
         title: "Error",
-        description: error.message || "Failed to generate template",
+        description: "Failed to generate template. Please try again.",
         variant: "destructive",
       });
     } finally {

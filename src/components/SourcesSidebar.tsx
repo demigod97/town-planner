@@ -12,6 +12,8 @@ import { useDropzone } from "react-dropzone";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { NetworkIndicator } from "@/components/NetworkStatus";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 interface Source {
   id: string;
@@ -39,6 +41,8 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<Record<string, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [userQuery, setUserQuery] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const { handleAsyncError } = useErrorHandler();
 
@@ -74,29 +78,34 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    
+    setIsUploading(true);
+    
     for (const file of acceptedFiles) {
       try {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
         
         console.log('Starting file upload:', file.name);
         const result = await handleAsyncError(
-          () => uploadFile(file, notebookId),
+          () => uploadFile(file, notebookId, userQuery.trim() || undefined),
           { operation: 'file_upload', fileName: file.name, fileSize: file.size }
         );
         
         console.log('File upload completed:', result);
         toast({
           title: "Upload successful",
-          description: `${file.name} has been uploaded and is being processed.`,
+          description: `${file.name} has been uploaded and sent for processing.`,
         });
+        
+        // Clear the query after successful upload
+        setUserQuery("");
       } catch (error) {
         // Error already handled by handleAsyncError
         console.error('File upload failed:', error);
         toast({
           title: "Upload failed",
-          description: error.message?.includes('environment') 
-            ? "Server configuration issue. Please contact support."
-            : error.message || `Failed to upload ${file.name}. Please try again.`,
+          description: `Failed to upload ${file.name}. Please try again.`,
           variant: "destructive",
         });
       } finally {
@@ -107,6 +116,8 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         });
       }
     }
+    
+    setIsUploading(false);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -116,6 +127,20 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
     },
     multiple: true
   });
+
+  const handleManualUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.multiple = true;
+    input.onchange = (e) => {
+      const files = Array.from((e.target as HTMLInputElement).files || []);
+      if (files.length > 0) {
+        onDrop(files);
+      }
+    };
+    input.click();
+  };
 
   const filteredSources = sources.filter(source =>
     source.display_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -144,16 +169,34 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         </div>
         
         <div className="p-4 border-b space-y-4">
+          {/* User Query Input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              What would you like to know about these documents? (Optional)
+            </label>
+            <Textarea
+              placeholder="e.g., What are the setback requirements? What permits are needed?"
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              className="min-h-[80px] resize-none"
+              disabled={isUploading}
+            />
+          </div>
+          
           {/* Dropzone for PDF upload */}
           <div 
             {...getRootProps()} 
             className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-              isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+              isDragActive ? 'border-primary bg-primary/5' : 
+              isUploading ? 'border-muted-foreground/25 bg-muted/20 cursor-not-allowed' :
+              'border-muted-foreground/25 hover:border-primary/50'
             }`}
           >
-            <input {...getInputProps()} />
+            <input {...getInputProps()} disabled={isUploading} />
             <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            {isDragActive ? (
+            {isUploading ? (
+              <p className="text-sm text-muted-foreground">Uploading files...</p>
+            ) : isDragActive ? (
               <p className="text-sm text-muted-foreground">Drop PDFs here...</p>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -161,6 +204,16 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
               </p>
             )}
           </div>
+          
+          {/* Manual Upload Button */}
+          <Button 
+            onClick={handleManualUpload}
+            disabled={isUploading}
+            className="w-full"
+            variant="outline"
+          >
+            {isUploading ? 'Uploading...' : 'Choose Files'}
+          </Button>
           
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
