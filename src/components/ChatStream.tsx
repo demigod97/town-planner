@@ -7,6 +7,8 @@ import { Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import Lottie from "lottie-react";
 import { sendChat } from "@/lib/api";
+import { useErrorHandler } from "@/hooks/useErrorHandler";
+import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 
 
 // Load thinking animation from public folder
@@ -56,6 +58,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [citationData, setCitationData] = useState<Record<string, any>>({});
+  const { handleAsyncError } = useErrorHandler();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -109,18 +112,23 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
     setMessages(m => [...m, thinkingMessage]);
     
     try {
-      const res = await sendChat(sessionId, inputValue);
+      const res = await handleAsyncError(
+        () => sendChat(sessionId, inputValue),
+        { operation: 'send_chat_message', sessionId, messageLength: inputValue.length }
+      );
       // Remove thinking message and add actual response
       setMessages(m => [...m.slice(0, -1), 
         { id: res.userMessage.id, type: 'user', content: res.userMessage.content },
         { id: res.aiMessage.id, type: 'assistant', content: res.aiMessage.content }
       ]);
     } catch (error) {
-      console.error('Chat error:', error);
+      // Error already handled by handleAsyncError
       setMessages(m => [...m.slice(0, -1), {
         id: Date.now().toString(),
         type: "assistant",
-        content: "Sorry, I encountered an error. Please try again."
+        content: error.message?.includes('offline') 
+          ? "You appear to be offline. Please check your connection and try again."
+          : "Sorry, I encountered an error. Please try again."
       }]);
     } finally {
       setIsLoading(false);
@@ -167,82 +175,84 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background h-full">
-      {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-4 mobile-scroll">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            {message.type === 'assistant' && (
+    <ComponentErrorBoundary>
+      <div className="flex-1 flex flex-col bg-background h-full">
+        {/* Messages */}
+        <div className="flex-1 overflow-auto p-4 space-y-4 mobile-scroll">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              {message.type === 'assistant' && (
+                <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mt-0.5 flex-shrink-0">
+                  <div className="w-4 h-4 bg-primary-foreground rounded-sm" />
+                </div>
+              )}
+              
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  message.type === 'user'
+                    ? 'bg-chat-user text-primary-foreground'
+                    : 'bg-chat-assistant text-foreground'
+                }`}
+              >
+                <div className="text-sm leading-relaxed">
+                  {message.type === 'assistant' ? renderMessageContent(message.content) : message.content}
+                </div>
+              </div>
+              
+              {message.type === 'user' && (
+                <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
+                  <AvatarFallback className="bg-muted text-xs">U</AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+          ))}
+          
+          {/* Loading state */}
+          {isLoading && (
+            <div className="flex gap-3 justify-start">
               <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mt-0.5 flex-shrink-0">
                 <div className="w-4 h-4 bg-primary-foreground rounded-sm" />
               </div>
-            )}
-            
-            <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                message.type === 'user'
-                  ? 'bg-chat-user text-primary-foreground'
-                  : 'bg-chat-assistant text-foreground'
-              }`}
-            >
-              <div className="text-sm leading-relaxed">
-                {message.type === 'assistant' ? renderMessageContent(message.content) : message.content}
+              <div className="max-w-[80%] rounded-lg p-3 bg-chat-assistant text-foreground">
+                {thinkingAnimation ? (
+                  <Lottie 
+                    animationData={thinkingAnimation} 
+                    loop 
+                    style={{ width: 60, height: 30 }}
+                  />
+                ) : (
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  </div>
+                )}
               </div>
             </div>
-            
-            {message.type === 'user' && (
-              <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
-                <AvatarFallback className="bg-muted text-xs">U</AvatarFallback>
-              </Avatar>
-            )}
-          </div>
-        ))}
+          )}
+        </div>
         
-        {/* Loading state */}
-        {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mt-0.5 flex-shrink-0">
-              <div className="w-4 h-4 bg-primary-foreground rounded-sm" />
-            </div>
-            <div className="max-w-[80%] rounded-lg p-3 bg-chat-assistant text-foreground">
-              {thinkingAnimation ? (
-                <Lottie 
-                  animationData={thinkingAnimation} 
-                  loop 
-                  style={{ width: 60, height: 30 }}
-                />
-              ) : (
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                </div>
-              )}
-            </div>
+        {/* Input Area */}
+        <div className="border-t p-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask a follow-up question..."
+              className="flex-1"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              disabled={isLoading}
+            />
+            <Button size="sm" className="px-6" disabled={isLoading || !inputValue.trim()} onClick={handleSend}>
+              <Send className="h-4 w-4 mr-2" />
+              Send
+            </Button>
           </div>
-        )}
-      </div>
-      
-      {/* Input Area */}
-      <div className="border-t p-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Ask a follow-up question..."
-            className="flex-1"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            disabled={isLoading}
-          />
-          <Button size="sm" className="px-6" disabled={isLoading || !inputValue.trim()} onClick={handleSend}>
-            <Send className="h-4 w-4 mr-2" />
-            Send
-          </Button>
         </div>
       </div>
-    </div>
+    </ComponentErrorBoundary>
   );
 };

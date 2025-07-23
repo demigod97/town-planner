@@ -9,6 +9,9 @@ import { MapPreview } from "./MapPreview";
 import { template, genTemplate } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
+import { useErrorHandler } from "@/hooks/useErrorHandler";
+import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
+import { validateRequired } from "@/lib/error-handling";
 
 interface PermitDrawerProps {
   sessionId?: string;
@@ -19,6 +22,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preview, setPreview] = useState<string>('');
   const [download, setDownload] = useState<string>('');
+  const { handleAsyncError } = useErrorHandler();
   
   const { register, handleSubmit, watch, reset } = useForm({
     defaultValues: {
@@ -31,10 +35,15 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
   const watchedAddress = watch("address");
 
   const onSubmit = async (data: any) => {
-    if (!data.permitType || !data.address || !data.applicant) {
+    try {
+      // Validate required fields
+      validateRequired(data.permitType, 'Permit Type');
+      validateRequired(data.address, 'Property Address');
+      validateRequired(data.applicant, 'Applicant Name');
+    } catch (error) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
+        title: "Validation Error",
+        description: error.message,
         variant: "destructive",
       });
       return;
@@ -43,13 +52,16 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
     setIsSubmitting(true);
     
     try {
-      const { docx_url, preview_url } = await genTemplate({
-        ...data,
-        sessionId: sessionId || ""
-      });
+      const result = await handleAsyncError(
+        () => genTemplate({
+          ...data,
+          sessionId: sessionId || ""
+        }),
+        { operation: 'generate_template', permitType: data.permitType }
+      );
       
-      setPreview(preview_url);
-      setDownload(docx_url);
+      setPreview(result.preview_url);
+      setDownload(result.docx_url);
       
       toast({
         title: "Template ready",
@@ -57,14 +69,15 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
       });
       
       if (onTemplateCreated) {
-        onTemplateCreated(docx_url);
+        onTemplateCreated(result.docx_url);
       }
       
       reset();
     } catch (error) {
+      // Error already handled by handleAsyncError
       toast({
         title: "Error",
-        description: "Failed to generate template",
+        description: error.message || "Failed to generate template",
         variant: "destructive",
       });
     } finally {
@@ -73,112 +86,114 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
   };
 
   return (
-    <div className="w-[340px] bg-sidebar-custom border-l h-full flex flex-col">
-      <div className="p-4 border-b">
-        <h2 className="font-medium text-foreground">Assistant Actions</h2>
-        <p className="text-sm text-muted-foreground">Generate permits and view locations.</p>
-      </div>
-      
-      <div className="flex-1 p-4">
-        <Tabs defaultValue="actions" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="actions">Actions</TabsTrigger>
-            <TabsTrigger value="map">Map</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="actions" className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-foreground mb-3">
-                Permit Template Generator
-              </h3>
-              
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="permitType">Permit Type</Label>
-                  <Select {...register("permitType")}>
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Select permit type" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="building">Building Permit</SelectItem>
-                      <SelectItem value="zoning">Zoning Variance</SelectItem>
-                      <SelectItem value="subdivision">Subdivision</SelectItem>
-                      <SelectItem value="site-plan">Site Plan Review</SelectItem>
-                      <SelectItem value="special-use">Special Use Permit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Property Address</Label>
-                  <Input
-                    id="address"
-                    {...register("address")}
-                    placeholder="123 Main Street, City, State"
-                    className="bg-background"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="applicant">Applicant Name</Label>
-                  <Input
-                    id="applicant"
-                    {...register("applicant")}
-                    placeholder="John Doe"
-                    className="bg-background"
-                  />
-                </div>
-
-                <MapPreview address={watchedAddress} />
-
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Generating..." : "Generate Template"}
-                </Button>
+    <ComponentErrorBoundary>
+      <div className="w-[340px] bg-sidebar-custom border-l h-full flex flex-col">
+        <div className="p-4 border-b">
+          <h2 className="font-medium text-foreground">Assistant Actions</h2>
+          <p className="text-sm text-muted-foreground">Generate permits and view locations.</p>
+        </div>
+        
+        <div className="flex-1 p-4">
+          <Tabs defaultValue="actions" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="actions">Actions</TabsTrigger>
+              <TabsTrigger value="map">Map</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="actions" className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-foreground mb-3">
+                  Permit Template Generator
+                </h3>
                 
-                {download && (
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="permitType">Permit Type</Label>
+                    <Select {...register("permitType")}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select permit type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        <SelectItem value="building">Building Permit</SelectItem>
+                        <SelectItem value="zoning">Zoning Variance</SelectItem>
+                        <SelectItem value="subdivision">Subdivision</SelectItem>
+                        <SelectItem value="site-plan">Site Plan Review</SelectItem>
+                        <SelectItem value="special-use">Special Use Permit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Property Address</Label>
+                    <Input
+                      id="address"
+                      {...register("address")}
+                      placeholder="123 Main Street, City, State"
+                      className="bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="applicant">Applicant Name</Label>
+                    <Input
+                      id="applicant"
+                      {...register("applicant")}
+                      placeholder="John Doe"
+                      className="bg-background"
+                    />
+                  </div>
+
+                  <MapPreview address={watchedAddress} />
+
                   <Button 
-                    variant="outline" 
-                    className="w-full mt-2"
-                    onClick={() => window.open(download, '_blank')}
+                    type="submit" 
+                    className="w-full"
+                    disabled={isSubmitting}
                   >
-                    Download Template
+                    {isSubmitting ? "Generating..." : "Generate Template"}
                   </Button>
-                )}
+                  
+                  {download && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-2"
+                      onClick={() => window.open(download, '_blank')}
+                    >
+                      Download Template
+                    </Button>
+                  )}
+                  
+                  {preview && (
+                    <Button 
+                      variant="ghost" 
+                      className="w-full mt-1"
+                      onClick={() => window.open(preview, '_blank')}
+                    >
+                      Preview Template
+                    </Button>
+                  )}
+                </form>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="map" className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-foreground mb-3">
+                  Location & Mapping
+                </h3>
                 
-                {preview && (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full mt-1"
-                    onClick={() => window.open(preview, '_blank')}
-                  >
-                    Preview Template
-                  </Button>
+                {sessionId ? (
+                  <MapTab sessionId={sessionId} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Session required for map functionality
+                  </p>
                 )}
-              </form>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="map" className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-foreground mb-3">
-                Location & Mapping
-              </h3>
-              
-              {sessionId ? (
-                <MapTab sessionId={sessionId} />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Session required for map functionality
-                </p>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-    </div>
+    </ComponentErrorBoundary>
   );
 };

@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types'
+import { ErrorHandler, RetryHandler, OfflineQueue, NetworkMonitor, validateRequired, validateFileSize, validateFileType } from './error-handling'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -54,10 +55,27 @@ export async function getUserSettings(): Promise<LLMSettings> {
 
 export async function uploadFile(file: File, notebookId: string) {
   try {
+    // Validate inputs
+    validateRequired(file, 'File');
+    validateRequired(notebookId, 'Notebook ID');
+    validateFileSize(file, 50); // 50MB limit
+    validateFileType(file, ['application/pdf']);
+
+    // Check network status
+    if (!NetworkMonitor.getInstance().isOnlineStatus()) {
+      const queueId = OfflineQueue.getInstance().addToQueue('upload_file', { file, notebookId });
+      throw new Error('You are offline. File will be uploaded when connection is restored.');
+    }
+
     // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await RetryHandler.withRetry(
+      () => supabase.auth.getUser(),
+      2
+    );
     if (userError || !user) {
-      throw new Error('User not authenticated');
+      const error = new Error('User not authenticated');
+      ErrorHandler.handle(error, { operation: 'upload_file', step: 'authentication' });
+      throw error;
     }
 
     // Generate unique file path
@@ -66,16 +84,25 @@ export async function uploadFile(file: File, notebookId: string) {
     const filePath = `${user.id}/${fileName}`;
 
     // Upload to storage using the correct bucket name from schema
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('sources')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const { data: uploadData, error: uploadError } = await RetryHandler.withRetry(
+      () => supabase.storage
+        .from('sources')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        }),
+      3
+    );
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
-      throw new Error(`Upload failed: ${uploadError.message}`);
+      const error = new Error(`Upload failed: ${uploadError.message}`);
+      ErrorHandler.handle(error, { 
+        operation: 'upload_file', 
+        step: 'storage_upload',
+        fileSize: file.size,
+        fileName: file.name
+      });
+      throw error;
     }
 
     // Get public URL for the file
@@ -84,26 +111,39 @@ export async function uploadFile(file: File, notebookId: string) {
       .getPublicUrl(filePath);
 
     // Create source record in database with correct schema
-    const { data: sourceData, error: sourceError } = await supabase
-      .from('sources')
-      .insert({
-        notebook_id: notebookId,
-        user_id: user.id,
-        file_url: urlData.publicUrl,
-        file_name: file.name,
-        file_size: file.size,
-        mime_type: file.type,
-        display_name: file.name,
-        processing_status: 'pending'
-      })
-      .select()
-      .single();
+    const { data: sourceData, error: sourceError } = await RetryHandler.withRetry(
+      () => supabase
+        .from('sources')
+        .insert({
+          notebook_id: notebookId,
+          user_id: user.id,
+          file_url: urlData.publicUrl,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          display_name: file.name,
+          processing_status: 'pending'
+        })
+        .select()
+        .single(),
+      2
+    );
 
     if (sourceError) {
-      console.error('Database insert error:', sourceError);
       // Clean up uploaded file if database insert fails
-      await supabase.storage.from('sources').remove([filePath]);
-      throw new Error(`Database error: ${sourceError.message}`);
+      try {
+        await supabase.storage.from('sources').remove([filePath]);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup uploaded file:', cleanupError);
+      }
+      
+      const error = new Error(`Database error: ${sourceError.message}`);
+      ErrorHandler.handle(error, { 
+        operation: 'upload_file', 
+        step: 'database_insert',
+        supabaseError: sourceError
+      });
+      throw error;
     }
 
     // Call the process-pdf-with-metadata edge function
@@ -121,7 +161,11 @@ export async function uploadFile(file: File, notebookId: string) {
       );
 
       if (processError) {
-        console.warn('Processing function error:', processError);
+        ErrorHandler.handle(processError, { 
+          operation: 'upload_file', 
+          step: 'edge_function_processing',
+          sourceId: sourceData.id
+        });
         // Update source status to failed
         await supabase
           .from('sources')
@@ -129,12 +173,16 @@ export async function uploadFile(file: File, notebookId: string) {
           .eq('id', sourceData.id);
       }
     } catch (processErr) {
-      console.warn('Processing function failed:', processErr);
+      ErrorHandler.handle(processErr, { 
+        operation: 'upload_file', 
+        step: 'edge_function_call',
+        sourceId: sourceData.id
+      });
     }
 
     return { uploadData, sourceData };
   } catch (error) {
-    console.error('Upload function error:', error);
+    ErrorHandler.handle(error, { operation: 'upload_file' });
     throw error;
   }
 }
