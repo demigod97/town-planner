@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Upload, Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/api";
 import { uploadFile } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
