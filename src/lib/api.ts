@@ -547,7 +547,7 @@ export async function downloadReport(reportId: string): Promise<string> {
 // =====================================================
 
 export async function createNotebook(
-  title: string,
+  name: string,
   projectType: string,
   clientDetails?: any
 ): Promise<string> {
@@ -558,7 +558,7 @@ export async function createNotebook(
     .from('notebooks')
     .insert({
       user_id: userId,
-      title: title,
+      name: name,
       project_type: projectType,
       client_name: clientDetails?.clientName,
       address: clientDetails?.address,
@@ -782,7 +782,7 @@ export async function getDefaultNotebook(): Promise<string> {
     .select('id')
     .eq('user_id', user.id)
     .eq('name', 'Default Notebook')
-    .single();
+    .maybeSingle();
 
   if (notebooks?.id) {
     return notebooks.id;
