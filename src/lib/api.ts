@@ -777,12 +777,12 @@ export async function getDefaultNotebook(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Check for existing default notebook
+      name: 'Default Notebook',
   const { data: notebooks } = await supabase
     .from('notebooks')
     .select('id')
     .eq('user_id', user.id)
-    .eq('title', 'Default Notebook')
+    .eq('name', 'Default Notebook')
     .single();
 
   if (notebooks?.id) {
