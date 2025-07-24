@@ -286,10 +286,10 @@ export async function getDefaultNotebook(): Promise<string> {
     .select('id')
     .eq('user_id', user.id)
     .eq('name', 'Default Notebook')
-    .single()
+    .limit(1)
 
-  if (notebooks?.id) {
-    return notebooks.id
+  if (notebooks && notebooks.length > 0) {
+    return notebooks[0].id
   }
 
   // Create default notebook
