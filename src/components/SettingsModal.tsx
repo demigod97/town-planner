@@ -1,15 +1,17 @@
 // src/components/SettingsModal.tsx
 import { useState, useEffect } from 'react'
-import { X, Loader2, Check, AlertCircle } from 'lucide-react'
+import { X, Loader2, Check, AlertCircle, Settings } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { updateUserSettings, testLLMConnection, getUserSettings } from '../lib/api'
 import type { LLMSettings } from '../lib/api'
 
 interface SettingsModalProps {
-  isOpen: boolean
-  onClose: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [settings, setSettings] = useState<LLMSettings>({
     provider: 'ollama',
     model: '',
@@ -21,10 +23,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       loadSettings()
     }
-  }, [isOpen])
+  }, [open])
 
   const loadSettings = async () => {
     try {
@@ -39,7 +41,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSaving(true)
     try {
       await updateUserSettings(settings)
-      onClose()
+      onOpenChange(false)
     } catch (error) {
       console.error('Failed to save settings:', error)
     } finally {
@@ -84,22 +86,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const selectedProvider = providers.find(p => p.id === settings.provider)
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="settings-modal">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Settings
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="p-6 space-y-6">
+        <div className="space-y-6">
           {/* LLM Provider Selection */}
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -216,23 +213,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {/* Save Button */}
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Save Settings
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

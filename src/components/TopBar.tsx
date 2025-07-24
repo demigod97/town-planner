@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Menu, Bell, User, Trash2, Settings } from "lucide-react";
+import { Bell, User, Trash2, Settings, LogOut } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { HistoryDrawer } from "./HistoryDrawer";
 import { SettingsModal } from "./SettingsModal";
 import { useSettings } from "@/hooks/useSettings";
+import { useSession } from "@/hooks/useSession";
 
 interface TopBarProps {
   onClearChats?: () => void;
@@ -19,8 +19,8 @@ interface TopBarProps {
 export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
   const [pendingJobs] = useState(2); // Mock pending jobs count
   const [showSettings, setShowSettings] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const { settings, updateSettings } = useSettings();
+  const { signOut } = useSession();
   const llmProvider = settings.llmProvider;
 
   const handleClearChats = () => {
@@ -38,26 +38,28 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
     toast(`Switched to ${newProvider}`);
   };
 
-  const handleSessionSelect = (sessionId: string) => {
-    onSessionSelect?.(sessionId);
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast("Signed out successfully");
+    } catch (error) {
+      toast("Failed to sign out", { description: error.message });
+    }
   };
 
   return (
     <div className="h-14 bg-background border-b flex items-center justify-between px-4 sticky top-0 z-40">
-      {/* Left - History Drawer */}
-      <div className="flex items-center gap-3">
-        <HistoryDrawer onSessionSelect={handleSessionSelect} />
-      </div>
-
-      {/* Center - Title */}
+      {/* Left - Logo/Brand */}
       <div className="flex items-center gap-2">
         <span className="text-xl">🏙️</span>
         <h1 className="text-lg font-semibold text-foreground hidden sm:block">
           Town Planner Assistant
         </h1>
-        <h1 className="text-lg font-semibold text-foreground sm:hidden">
-          Town Planner
-        </h1>
+      </div>
+
+      {/* Center - Title */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <span className="text-lg font-semibold text-foreground">Town Planner</span>
       </div>
 
       {/* Right - LLM Toggle, Bell & Avatar */}
@@ -117,6 +119,10 @@ export const TopBar = ({ onClearChats, onSessionSelect }: TopBarProps) => {
             <DropdownMenuItem onClick={handleClearChats} className="cursor-pointer text-destructive focus:text-destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Clear Chats
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

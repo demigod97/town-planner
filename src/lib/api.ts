@@ -338,21 +338,138 @@ export function subscribeToProcessingJob(
 // Compatibility Functions for Existing Components
 // =====================================================
 
-// For ChatStream.tsx
-export async function sendChat(sessionId: string, message: string) {
-  try {
-    const response = await sendChatMessage(sessionId, message)
-    
-    return {
-      userMessage: {
-        id: Date.now().toString(),
-        content: message
-      },
-      aiMessage: {
-        id: (Date.now() + 1).toString(),
-        content: response.content
-      }
+    if (!message?.trim()) {
+      throw new Error('Message content is required');
     }
+// For ChatStream.tsx
+    // Get current user for authentication
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Authentication required');
+    }
+
+    // Store user message in database first
+    const { data: userMessage, error: userMessageError } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        user_id: user.id,
+        role: 'user',
+        content: message.trim()
+      })
+      .select()
+      .single();
+
+    if (userMessageError) {
+      console.error('Failed to store user message:', userMessageError);
+      throw new Error('Failed to save message');
+    }
+
+    // Get session details for context
+    const { data: session } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    // Call n8n webhook via edge function with enhanced error handling
+    try {
+      const { data: chatResponse, error: chatError } = await supabase.functions
+        .invoke('trigger-n8n', {
+          body: {
+            webhook_type: 'chat',
+            webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+            payload: {
+              session_id: sessionId,
+              message: message.trim(),
+              user_id: user.id,
+              notebook_id: session?.notebook_id,
+              timestamp: new Date().toISOString(),
+              llm_provider: session?.llm_provider || 'ollama'
+            }
+          }
+        });
+
+      if (chatError) {
+        console.error('Chat webhook error:', chatError);
+        throw new Error('AI service temporarily unavailable');
+      }
+
+      // Extract response content safely
+      let responseContent = 'Processing your message...';
+      
+      if (chatResponse) {
+        if (typeof chatResponse === 'string') {
+          responseContent = chatResponse;
+        } else if (chatResponse.response) {
+          responseContent = chatResponse.response;
+        } else if (chatResponse.content) {
+          responseContent = chatResponse.content;
+        } else if (chatResponse.message) {
+          responseContent = chatResponse.message;
+        }
+      }
+
+      // Store AI response in database
+      const { data: aiMessage, error: aiMessageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          role: 'assistant',
+          content: responseContent,
+          llm_provider: session?.llm_provider || 'ollama',
+          llm_model: session?.llm_model
+        })
+        .select()
+        .single();
+
+      if (aiMessageError) {
+        console.error('Failed to store AI message:', aiMessageError);
+        // Don't throw here - user message was saved successfully
+      }
+    // Validate inputs
+      return {
+        userMessage: {
+          id: userMessage.id,
+          content: message.trim()
+        },
+        aiMessage: {
+          id: aiMessage?.id || Date.now().toString(),
+          content: responseContent
+        }
+      };
+
+    } catch (webhookError) {
+      console.error('Webhook call failed:', webhookError);
+      
+      // Store a fallback AI response
+      const fallbackContent = 'I apologize, but I\'m currently experiencing technical difficulties. Please try again in a moment.';
+      
+      const { data: fallbackMessage } = await supabase
+        .from('chat_messages')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          role: 'assistant',
+          content: fallbackContent,
+          llm_provider: 'fallback'
+        })
+        .select()
+        .single();
+
+      return {
+        userMessage: {
+          id: userMessage.id,
+          content: message.trim()
+        },
+        aiMessage: {
+          id: fallbackMessage?.id || Date.now().toString(),
+          content: fallbackContent
+        }
+      };
+    }
+
   } catch (error) {
     console.error('sendChat error:', error)
     throw error
