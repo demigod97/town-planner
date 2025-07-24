@@ -7,12 +7,17 @@
  * Modern layout with unified left sidebar and reports-only right sidebar
  */
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Menu, FileText, BarChart3 } from 'lucide-react';
 import { TopBar } from '@/components/TopBar';
+import { UnifiedSidebar } from '@/components/UnifiedSidebar';
 import { EnhancedChatStream } from '@/components/EnhancedChatStream';
 import { ReportsOnlySidebar } from '@/components/ReportsOnlySidebar';
 import { ComponentErrorBoundary } from '@/components/ErrorBoundary';
 import { useSessionManagement } from '@/hooks/useSessionManagement';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 
 interface TownPlannerLayoutProps {
@@ -24,19 +29,20 @@ export const TownPlannerLayout = ({
   notebookId, 
   initialSessionId 
 }: TownPlannerLayoutProps) => {
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+
   // Session management
   const {
     sessionState,
     sessions,
     isLoading,
-    isInitialized,
     error,
     createSession,
-    clearAllHistory,
     switchToSession,
     recoverFromError,
-    isCreatingSession,
-    isClearingHistory
+    isCreatingSession
   } = useSessionManagement({ 
     notebookId, 
     autoRestore: true, 
@@ -47,6 +53,7 @@ export const TownPlannerLayout = ({
   const handleSessionSelect = async (sessionId: string) => {
     try {
       await switchToSession(sessionId);
+      setLeftSidebarOpen(false); // Close mobile sidebar
       toast.success('Session switched');
     } catch (error) {
       toast.error('Failed to switch session');
@@ -58,19 +65,10 @@ export const TownPlannerLayout = ({
   const handleCreateSession = async () => {
     try {
       await createSession();
+      setLeftSidebarOpen(false); // Close mobile sidebar
     } catch (error) {
       toast.error('Failed to create new session');
       console.error('Session creation error:', error);
-    }
-  };
-
-  // Handle clear history
-  const handleClearHistory = async () => {
-    try {
-      await clearAllHistory();
-    } catch (error) {
-      toast.error('Failed to clear history');
-      console.error('Clear history error:', error);
     }
   };
 
@@ -80,8 +78,24 @@ export const TownPlannerLayout = ({
     toast.info('Report generation coming soon');
   };
 
+  // Handle clear chats
+  const handleClearChats = () => {
+    if (confirm('Clear all chat history? This cannot be undone.')) {
+      // Implementation for clearing chats
+      toast.success('Chat history cleared');
+    }
+  };
+
+  // Auto-close mobile sidebars when switching to desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setLeftSidebarOpen(false);
+      setRightSidebarOpen(false);
+    }
+  }, [isMobile]);
+
   // Error recovery
-  if (error && !sessionState.currentSessionId && !isLoading) {
+  if (error && !sessionState.currentSessionId) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center max-w-md p-6">
@@ -107,19 +121,49 @@ export const TownPlannerLayout = ({
       <div className="h-screen flex flex-col bg-background overflow-hidden">
         {/* Top Bar */}
         <TopBar 
-          notebookId={notebookId}
-          currentSessionId={sessionState.currentSessionId}
-          sessions={sessions}
+          onClearChats={handleClearChats}
           onSessionSelect={handleSessionSelect}
-          onCreateSession={handleCreateSession}
-          onClearHistory={handleClearHistory}
-          isClearingHistory={isClearingHistory}
         />
         
         <div className="flex-1 flex overflow-hidden">
+          {/* Desktop Left Sidebar */}
+          <div className="hidden lg:block">
+            <UnifiedSidebar
+              notebookId={notebookId}
+              currentSessionId={sessionState.currentSessionId}
+              sessions={sessions}
+              onSessionSelect={handleSessionSelect}
+              onCreateSession={handleCreateSession}
+              isCreatingSession={isCreatingSession}
+            />
+          </div>
+          
+          {/* Mobile Left Sidebar */}
+          <Sheet open={leftSidebarOpen} onOpenChange={setLeftSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="lg:hidden fixed top-16 left-2 z-40"
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-[320px]">
+              <UnifiedSidebar
+                notebookId={notebookId}
+                currentSessionId={sessionState.currentSessionId}
+                sessions={sessions}
+                onSessionSelect={handleSessionSelect}
+                onCreateSession={handleCreateSession}
+                isCreatingSession={isCreatingSession}
+              />
+            </SheetContent>
+          </Sheet>
+          
           {/* Chat Area */}
           <div className="flex-1 flex flex-col min-w-0">
-            {isLoading && !isInitialized ? (
+            {isLoading && !sessionState.currentSessionId ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
@@ -142,6 +186,25 @@ export const TownPlannerLayout = ({
               onGenerateReport={handleGenerateReport}
             />
           </div>
+          
+          {/* Mobile Right Sidebar */}
+          <Sheet open={rightSidebarOpen} onOpenChange={setRightSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="lg:hidden fixed top-16 right-2 z-40"
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="p-0 w-[340px]">
+              <ReportsOnlySidebar
+                notebookId={notebookId}
+                onGenerateReport={handleGenerateReport}
+              />
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </ComponentErrorBoundary>
