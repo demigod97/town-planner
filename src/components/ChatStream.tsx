@@ -10,6 +10,8 @@ import { sendChat } from "@/lib/api";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { fetchCitation } from "@/lib/api";
+import { InlineError } from "@/components/ui/error-display";
+import { NetworkIndicator } from "@/components/NetworkStatus";
 
 
 // Load thinking animation from public folder
@@ -41,6 +43,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [citationData, setCitationData] = useState<Record<string, any>>({});
+  const [chatError, setChatError] = useState<string>("");
   const { handleAsyncError } = useErrorHandler();
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -65,6 +68,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
     
+    setChatError("");
     const messageContent = inputValue.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -99,7 +103,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
         ];
       });
     } catch (error) {
-      // Error already handled by handleAsyncError
+      setChatError(error.message || 'Failed to send message');
       setMessages(m => {
         const withoutThinking = m.slice(0, -1);
         return [
@@ -107,9 +111,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
           {
             id: Date.now().toString(),
             type: "assistant",
-            content: error.message?.includes('offline') 
-              ? "You appear to be offline. Please check your connection and try again."
-              : "Sorry, I encountered an error processing your message. Please try again."
+            content: "Sorry, I encountered an error processing your message. Please try again."
           }
         ];
       });
@@ -220,7 +222,23 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
         
         {/* Input Area */}
         <div className="border-t p-4">
+          {/* Chat Error Display */}
+          {chatError && (
+            <div className="mb-4">
+              <InlineError 
+                message={chatError} 
+                retry={() => {
+                  setChatError("");
+                  handleSend();
+                }}
+              />
+            </div>
+          )}
+          
           <div className="flex gap-2">
+            <div className="flex items-center">
+              <NetworkIndicator showLabel={false} />
+            </div>
             <Input
               placeholder="Ask about your documents..."
               className="flex-1"

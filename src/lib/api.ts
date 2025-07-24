@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types'
+import { 
+  uploadFileWithErrorHandling,
+  sendChatWithErrorHandling,
+  updateUserSettingsWithErrorHandling,
+  createNotebookWithErrorHandling,
+  fetchWithErrorHandling
+} from './api-with-error-handling'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -46,21 +53,7 @@ export async function getUserSettings(): Promise<LLMSettings> {
 // =====================================================
 
 export async function uploadFile(file: File, notebookId: string, userQuery?: string) {
-  try {
-    const result = await uploadAndProcessFile(file, notebookId, userQuery)
-    
-    return {
-      id: result.uploadId,
-      display_name: file.name,
-      file_size: file.size,
-      processing_status: 'processing',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  } catch (error) {
-    console.error('uploadFile error:', error)
-    throw error
-  }
+  return await uploadFileWithErrorHandling(file, notebookId, userQuery)
 }
 
 async function uploadAndProcessFile(
@@ -197,62 +190,10 @@ export async function sendChatMessage(
   sessionId: string,
   message: string
 ): Promise<ChatMessage> {
-  try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) throw new Error('Not authenticated')
-
-    // 1. Store user message in database
-    const { data: userMessage, error: messageError } = await supabase
-      .from('chat_messages')
-      .insert({
-        session_id: sessionId,
-        user_id: user.id,
-        role: 'user',
-        content: message,
-      })
-      .select()
-      .single()
-
-    if (messageError) throw messageError
-
-    // 2. Get session context
-    const { data: session } = await supabase
-      .from('chat_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single()
-
-    // 3. Call edge function to trigger n8n chat webhook
-    const { data: chatResponse, error: chatError } = await supabase.functions
-      .invoke('trigger-n8n', {
-        body: {
-          webhook_type: 'chat',
-          webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK || 'https://n8n.coralshades.ai/webhook-test/hhlm-chat',
-          payload: {
-            session_id: sessionId,
-            message: message,
-            user_id: user.id,
-            notebook_id: session?.notebook_id,
-            timestamp: new Date().toISOString()
-          }
-        }
-      })
-
-    if (chatError) {
-      console.error('Chat webhook error:', chatError)
-      throw new Error('Failed to process message')
-    }
-
-    // 4. Return success - n8n will handle storing the assistant response
-    const assistantContent = chatResponse?.response || 'Message sent to AI assistant for processing...'
-
-    return {
-      role: 'assistant',
-      content: assistantContent
-    }
-  } catch (error) {
-    console.error('Chat error:', error)
-    throw error
+  const result = await sendChatWithErrorHandling(sessionId, message)
+  return {
+    role: 'assistant',
+    content: result.aiMessage.content
   }
 }
 
@@ -322,31 +263,23 @@ export async function createNotebook(
   name: string,
   projectType: string = 'general'
 ): Promise<string> {
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) throw new Error('Not authenticated')
-
-  const { data, error } = await supabase
-    .from('notebooks')
-    .insert({
-      user_id: user.id,
-      name: name,
-      project_type: projectType
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data.id
+  return await createNotebookWithErrorHandling(name, projectType)
 }
 
 export async function getNotebooks() {
-  const { data, error } = await supabase
-    .from('notebooks')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return data
+  return await fetchWithErrorHandling(
+    async () => {
+      const { data, error } = await supabase
+        .from('notebooks')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data
+    },
+    'notebooks',
+    [] // fallback to empty array
+  )
 }
 
 export async function getDefaultNotebook(): Promise<string> {
@@ -491,13 +424,5 @@ export async function testLLMConnection(provider: string, settings: LLMSettings)
 
 // Update user settings
 export async function updateUserSettings(settings: LLMSettings): Promise<void> {
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) throw new Error('Not authenticated')
-
-  const { error } = await supabase
-    .from('user_profiles')
-    .update({ preferences: settings })
-    .eq('id', user.id)
-
-  if (error) throw error
+  return await updateUserSettingsWithErrorHandling(settings)
 }

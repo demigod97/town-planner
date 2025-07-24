@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { validateRequired } from "@/lib/error-handling";
+import { ValidationErrorDisplay, InlineError } from "@/components/ui/error-display";
 
 interface PermitDrawerProps {
   sessionId?: string;
@@ -22,6 +23,8 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preview, setPreview] = useState<string>('');
   const [download, setDownload] = useState<string>('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string>("");
   const { handleAsyncError } = useErrorHandler();
   
   const { register, handleSubmit, watch, reset } = useForm({
@@ -35,17 +38,23 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
   const watchedAddress = watch("address");
 
   const onSubmit = async (data: any) => {
+    setFormErrors({});
+    setSubmitError("");
+    
     try {
       // Validate required fields
-      validateRequired(data.permitType, 'Permit Type');
-      validateRequired(data.address, 'Property Address');
-      validateRequired(data.applicant, 'Applicant Name');
+      const errors: Record<string, string> = {};
+      
+      if (!data.permitType) errors.permitType = 'Please select a permit type';
+      if (!data.address?.trim()) errors.address = 'Property address is required';
+      if (!data.applicant?.trim()) errors.applicant = 'Applicant name is required';
+      
+      if (Object.keys(errors).length > 0) {
+        setFormErrors(errors);
+        return;
+      }
     } catch (error) {
-      toast({
-        title: "Validation Error",
-        description: error.message || "Please fill in all required fields",
-        variant: "destructive",
-      });
+      setSubmitError(error.message || "Please fill in all required fields");
       return;
     }
 
@@ -74,12 +83,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
       
       reset();
     } catch (error) {
-      // Error already handled by handleAsyncError
-      toast({
-        title: "Error",
-        description: "Failed to generate template. Please try again.",
-        variant: "destructive",
-      });
+      setSubmitError(error.message || "Failed to generate template. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -105,6 +109,23 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                 <h3 className="text-sm font-medium text-foreground mb-3">
                   Permit Template Generator
                 </h3>
+                
+                {/* Form Errors */}
+                {Object.keys(formErrors).length > 0 && (
+                  <div className="mb-4">
+                    <ValidationErrorDisplay errors={formErrors} />
+                  </div>
+                )}
+                
+                {/* Submit Error */}
+                {submitError && (
+                  <div className="mb-4">
+                    <InlineError 
+                      message={submitError} 
+                      retry={() => setSubmitError("")}
+                    />
+                  </div>
+                )}
                 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-2">
