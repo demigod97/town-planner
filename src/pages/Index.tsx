@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Settings } from "lucide-react";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
+import { LoadingWithError } from "@/components/ui/error-display";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,14 +72,7 @@ const Index = () => {
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>{!initialized ? 'Initializing...' : 'Loading...'}</p>
-        </div>
-      </div>
-    );
+    return <LoadingWithError isLoading={true} />;
   }
 
   // Don't render anything if not authenticated - redirect will handle it
@@ -88,14 +82,7 @@ const Index = () => {
 
   // Show loading state while notebook is being initialized
   if (!sessionId || !notebookId) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Initializing workspace...</p>
-        </div>
-      </div>
-    );
+    return <LoadingWithError isLoading={true} fallbackMessage="Initializing workspace..." />;
   }
 
   return (

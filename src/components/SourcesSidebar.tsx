@@ -12,6 +12,7 @@ import { useDropzone } from "react-dropzone";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { NetworkIndicator } from "@/components/NetworkStatus";
+import { ErrorDisplay, FileUploadErrorDisplay } from "@/components/ui/error-display";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,6 +47,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [userQuery, setUserQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [uploadError, setUploadError] = useState<string>("");
   const { toast } = useToast();
   const { handleAsyncError } = useErrorHandler();
   const queryClient = useQueryClient();
@@ -84,6 +86,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const onDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     
+    setUploadError("");
     setIsUploading(true);
     
     for (const file of acceptedFiles) {
@@ -108,8 +111,8 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         // Refresh the sources list
         queryClient.invalidateQueries({ queryKey: ["sources", notebookId] })
       } catch (error) {
-        // Error already handled by handleAsyncError
         console.error('File upload failed:', error);
+        setUploadError(error.message || 'Upload failed');
       } finally {
         setUploadProgress((prev) => {
           const newProgress = { ...prev };
@@ -216,6 +219,17 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         </div>
         
         <div className="p-4 border-b space-y-4">
+          {/* Upload Error Display */}
+          {uploadError && (
+            <FileUploadErrorDisplay
+              error={uploadError}
+              retry={() => {
+                setUploadError("");
+                // Retry with last uploaded files if available
+              }}
+            />
+          )}
+          
           {/* User Query Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">
