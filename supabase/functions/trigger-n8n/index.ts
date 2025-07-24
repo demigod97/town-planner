@@ -50,13 +50,13 @@ serve(async (req) => {
       switch (webhook_type) {
         case 'chat':
           finalWebhookUrl = Deno.env.get('VITE_N8N_CHAT_WEBHOOK') || 
-                           `${baseUrl}/webhook-test/hhlm-chat`
+                           `${baseUrl}/webhook/hhlm-chat`
           break
         case 'ingest':
-          finalWebhookUrl = `${baseUrl}/webhook-test/ingest`
+          finalWebhookUrl = `${baseUrl}/webhook/ingest`
           break
         case 'template':
-          finalWebhookUrl = `${baseUrl}/webhook-test/template`
+          finalWebhookUrl = `${baseUrl}/webhook/template`
           break
         default:
           throw new Error(`Unknown webhook_type: ${webhook_type}`)
