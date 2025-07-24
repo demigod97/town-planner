@@ -68,9 +68,13 @@ export async function uploadAndProcessFile(
     const { data: source, error: sourceError } = await supabase
       .from('sources')
       .insert({
+        user_id: user.id,
         notebook_id: notebookId,
+        file_url: uploadData.path,
+        file_name: sanitizedFileName,
         display_name: file.name.replace(/\.[^/.]+$/, ''),
         file_size: file.size,
+        mime_type: file.type,
         processing_status: 'pending',
         metadata_extracted: false
       })
