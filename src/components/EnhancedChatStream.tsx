@@ -94,6 +94,13 @@ export const EnhancedChatStream = ({
     }
   }, [initialSessionId, sessionState.currentSessionId, switchToSession]);
 
+  // Clear loading state on mount for immediate chat start
+  useEffect(() => {
+    if (sessionState.currentSessionId && sessionState.messages.length === 0 && !isLoading) {
+      console.log('Chat ready for new conversation');
+    }
+  }, [sessionState.currentSessionId, sessionState.messages.length, isLoading]);
+
   /**
    * Bulletproof message content renderer
    * Handles all possible content types safely
@@ -348,45 +355,33 @@ export const EnhancedChatStream = ({
     );
   }
 
+  // Show loading only during initial setup, not for empty sessions
+  if (isLoading && !isInitialized) {
+    return (
+      <div className={`flex-1 flex flex-col bg-background ${className}`}>
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-sm text-muted-foreground">Initializing chat...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ComponentErrorBoundary>
       <div className={`flex-1 flex flex-col bg-background ${className}`}>
-        {/* Session Info Header */}
-        {getCurrentSession() && (
-          <div className="px-4 py-2 border-b bg-muted/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium truncate">
-                  {getCurrentSession()?.title}
-                </h3>
-                {getCurrentSession()?.llm_provider && (
-                  <Badge variant="outline" className="text-xs">
-                    {getCurrentSession()?.llm_provider}
-                  </Badge>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {sessionState.messages.length} messages
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Messages Area */}
         <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
           <div className="space-y-4 max-w-4xl mx-auto">
-            {isLoading && sessionState.messages.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                <p className="text-sm text-muted-foreground">Loading conversation...</p>
-              </div>
-            ) : sessionState.messages.length === 0 ? (
+            {sessionState.messages.length === 0 ? (
               <div className="text-center py-12">
                 <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold mb-2">Welcome to Town Planner Assistant</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   I can help you with zoning regulations, permit applications, planning requirements, and more. 
-                  Upload documents and ask questions to get started.
+                  Start by asking a question or uploading documents.
                 </p>
               </div>
             ) : (
@@ -471,7 +466,7 @@ export const EnhancedChatStream = ({
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
-                placeholder="Ask about your documents..."
+                placeholder="Ask me anything about town planning..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -502,9 +497,9 @@ export const EnhancedChatStream = ({
             {/* Character count */}
             <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
               <span>
-                {!sessionState.currentSessionId ? 'No active session' : 
+                {!sessionState.currentSessionId ? 'Initializing session...' : 
                  isSending ? 'Sending message...' : 
-                 'Type your message and press Enter'}
+                 'Ready to chat'}
               </span>
               <span>{inputValue.length}/4000</span>
             </div>

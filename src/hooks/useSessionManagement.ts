@@ -32,6 +32,8 @@ export function useSessionManagement({
     error: null,
     hasMore: false
   });
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const queryClient = useQueryClient();
   const { handleAsyncError } = useErrorHandler();
@@ -60,7 +62,14 @@ export function useSessionManagement({
       }, { operation: 'fetch_sessions', notebookId });
     },
     staleTime: 30000, // 30 seconds
-    retry: 3
+    retry: 3,
+    onSuccess: () => {
+      console.log('Sessions loaded successfully');
+    },
+    onError: (error) => {
+      console.error('Failed to load sessions:', error);
+      setSessionState(prev => ({ ...prev, error: 'Failed to load sessions' }));
+    }
   });
 
   /**
@@ -71,6 +80,7 @@ export function useSessionManagement({
     queryFn: async (): Promise<ChatMessage[]> => {
       if (!sessionState.currentSessionId) return [];
       
+      console.log('Fetching messages for session:', sessionState.currentSessionId);
       return handleAsyncError(async () => {
         const { data, error } = await supabase
           .from('chat_messages')
@@ -79,12 +89,52 @@ export function useSessionManagement({
           .order('created_at', { ascending: true });
         
         if (error) throw error;
+        console.log('Messages fetched:', data?.length || 0);
         return data || [];
       }, { operation: 'fetch_messages', sessionId: sessionState.currentSessionId });
     },
     enabled: !!sessionState.currentSessionId,
     staleTime: 10000, // 10 seconds
+    onSuccess: (data) => {
+      console.log('Messages query successful, count:', data.length);
+      // Clear loading state when messages are loaded (even if empty)
+      setSessionState(prev => ({ ...prev, isLoading: false }));
+      clearLoadingTimeout();
+    },
+    onError: (error) => {
+      console.error('Messages query failed:', error);
+      setSessionState(prev => ({ ...prev, isLoading: false, error: 'Failed to load messages' }));
+      clearLoadingTimeout();
+    }
   });
+
+  /**
+   * Clear loading timeout
+   */
+  const clearLoadingTimeout = useCallback(() => {
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+      setLoadingTimeout(null);
+    }
+  }, [loadingTimeout]);
+
+  /**
+   * Set loading timeout to prevent infinite loading
+   */
+  const setLoadingWithTimeout = useCallback(() => {
+    setSessionState(prev => ({ ...prev, isLoading: true }));
+    
+    const timeout = setTimeout(() => {
+      console.warn('Loading timeout reached, clearing loading state');
+      setSessionState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: 'Loading timeout - please try refreshing' 
+      }));
+    }, 10000); // 10 second timeout
+    
+    setLoadingTimeout(timeout);
+  }, []);
 
   /**
    * Create new chat session
@@ -114,11 +164,43 @@ export function useSessionManagement({
     onSuccess: (newSession) => {
       queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
       switchToSession(newSession.id);
+      setIsInitialized(true);
       toast.success('New chat session created');
     },
     onError: (error) => {
       toast.error('Failed to create new session');
       console.error('Session creation error:', error);
+      setSessionState(prev => ({ ...prev, isLoading: false }));
+    }
+  });
+
+  /**
+   * Clear all chat history
+   */
+  const clearAllHistoryMutation = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
     }
   });
 
@@ -226,6 +308,9 @@ export function useSessionManagement({
    */
   const switchToSession = useCallback(async (sessionId: string) => {
     try {
+      console.log('Switching to session:', sessionId);
+      clearLoadingTimeout();
+      
       // Save current session state
       if (sessionState.currentSessionId && sessionState.messages.length > 0) {
         saveSessionToStorage(sessionState.currentSessionId, sessionState.messages);
@@ -238,11 +323,11 @@ export function useSessionManagement({
       }
 
       // Update state
+      setLoadingWithTimeout();
       setSessionState(prev => ({
         ...prev,
         currentSessionId: sessionId,
         messages: [],
-        isLoading: true,
         error: null
       }));
 
@@ -259,7 +344,8 @@ export function useSessionManagement({
 
     } catch (error) {
       console.error('Error switching session:', error);
-      setSessionState(prev => ({ ...prev, error: 'Failed to switch session' }));
+      setSessionState(prev => ({ ...prev, error: 'Failed to switch session', isLoading: false }));
+      clearLoadingTimeout();
     }
   }, [sessionState.currentSessionId, sessionState.messages, enableRealtime, queryClient]);
 
@@ -382,7 +468,8 @@ export function useSessionManagement({
    */
   const recoverFromError = useCallback(async () => {
     try {
-      setSessionState(prev => ({ ...prev, error: null, isLoading: true }));
+      setSessionState(prev => ({ ...prev, error: null }));
+      setLoadingWithTimeout();
 
       // Try to restore current session
       if (sessionState.currentSessionId) {
@@ -392,6 +479,7 @@ export function useSessionManagement({
           messages: restoredMessages,
           isLoading: false
         }));
+        clearLoadingTimeout();
 
         // Re-setup realtime subscription
         if (enableRealtime) {
@@ -408,6 +496,7 @@ export function useSessionManagement({
         error: 'Failed to recover session', 
         isLoading: false 
       }));
+      clearLoadingTimeout();
     }
   }, [sessionState.currentSessionId, restoreSessionFromStorage, enableRealtime, setupRealtimeSubscription, createSessionMutation]);
 
@@ -416,42 +505,54 @@ export function useSessionManagement({
    */
   useEffect(() => {
     if (!autoRestore) return;
+    if (isInitialized) return;
 
     const initializeSession = async () => {
       try {
+        console.log('Initializing session management...');
+        setLoadingWithTimeout();
+        
         // Try to restore last session
         const lastSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
         
         if (lastSessionId && sessions.some(s => s.id === lastSessionId)) {
+          console.log('Restoring last session:', lastSessionId);
           await switchToSession(lastSessionId);
         } else if (sessions.length > 0) {
           // Use most recent session
+          console.log('Using most recent session:', sessions[0].id);
           await switchToSession(sessions[0].id);
         } else {
           // Create new session
+          console.log('Creating new session...');
           await createSessionMutation.mutateAsync();
         }
+        
+        setIsInitialized(true);
       } catch (error) {
         console.error('Error initializing session:', error);
-        setSessionState(prev => ({ ...prev, error: 'Failed to initialize session' }));
+        setSessionState(prev => ({ ...prev, error: 'Failed to initialize session', isLoading: false }));
+        clearLoadingTimeout();
       }
     };
 
-    if (sessions.length >= 0 && !sessionState.currentSessionId) {
+    if (sessions.length >= 0 && !sessionState.currentSessionId && !sessionsLoading) {
       initializeSession();
     }
-  }, [sessions, sessionState.currentSessionId, autoRestore, switchToSession, createSessionMutation]);
+  }, [sessions, sessionState.currentSessionId, autoRestore, switchToSession, createSessionMutation, isInitialized, sessionsLoading]);
 
   /**
    * Update messages when query data changes
    */
   useEffect(() => {
     if (messages && messages.length > 0) {
+      console.log('Updating messages in state, count:', messages.length);
       setSessionState(prev => ({
         ...prev,
         messages: messages.map(msg => ({ ...msg, status: 'completed' })),
         isLoading: false
       }));
+      clearLoadingTimeout();
     }
   }, [messages]);
 
@@ -460,6 +561,7 @@ export function useSessionManagement({
    */
   useEffect(() => {
     return () => {
+      clearLoadingTimeout();
       if (realtimeChannelRef.current) {
         supabase.removeChannel(realtimeChannelRef.current);
       }
@@ -475,11 +577,13 @@ export function useSessionManagement({
     // State
     sessionState,
     sessions,
-    isLoading: sessionsLoading || messagesLoading || sessionState.isLoading,
+    isLoading: (sessionsLoading || messagesLoading || sessionState.isLoading) && !isInitialized,
     error: sessionsError || sessionState.error,
+    isInitialized,
 
     // Actions
     createSession: createSessionMutation.mutateAsync,
+    clearAllHistory: clearAllHistoryMutation.mutateAsync,
     switchToSession,
     sendMessage: (message: string) => {
       if (!sessionState.currentSessionId) {
@@ -499,6 +603,7 @@ export function useSessionManagement({
     
     // Status
     isSending: sendMessageMutation.isPending,
-    isCreatingSession: createSessionMutation.isPending
+    isCreatingSession: createSessionMutation.isPending,
+    isClearingHistory: clearAllHistoryMutation.isPending
   };
 }
