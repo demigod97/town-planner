@@ -17,7 +17,11 @@ serve(async (req) => {
   }
 
   try {
-    const { webhook_type, webhook_url, payload }: WebhookRequest = await req.json()
+    // Parse request body
+    const requestBody = await req.json()
+    const { webhook_type, webhook_url, payload }: WebhookRequest = requestBody
+
+    console.log('Received request:', { webhook_type, webhook_url: webhook_url ? 'provided' : 'not provided', payload: payload ? 'provided' : 'missing' })
 
     if (!webhook_type || !payload) {
       throw new Error('Missing required parameters: webhook_type, payload')
@@ -27,11 +31,13 @@ serve(async (req) => {
     let finalWebhookUrl = webhook_url || ''
     
     if (webhook_type === 'chat' && !finalWebhookUrl) {
-      finalWebhookUrl = Deno.env.get('N8N_CHAT_WEBHOOK_URL') || 'https://n8n.coralshades.ai/webhook-test/hhlm-chat'
+      finalWebhookUrl = Deno.env.get('N8N_CHAT_WEBHOOK_URL') || 
+                       Deno.env.get('VITE_N8N_CHAT_WEBHOOK') ||
+                       'https://n8n.coralshades.ai/webhook-test/hhlm-chat'
     }
     
     if (!finalWebhookUrl) {
-      throw new Error(`No webhook URL provided for ${webhook_type} webhook`)
+      throw new Error(`No webhook URL available for ${webhook_type} webhook`)
     }
 
     console.log(`Triggering ${webhook_type} webhook: ${finalWebhookUrl}`)
@@ -43,8 +49,9 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }
 
-    // Get n8n API key for authentication
+    // Get n8n API key from Supabase secrets
     const n8nApiKey = Deno.env.get('N8N_API_KEY')
+    console.log('N8N API Key available:', n8nApiKey ? 'yes' : 'no')
     
     // Prepare headers with authentication
     const headers: Record<string, string> = {
@@ -55,7 +62,13 @@ serve(async (req) => {
     // Add API key header if available
     if (n8nApiKey) {
       headers['X-Api-Key'] = n8nApiKey
+      console.log('Added X-Api-Key header to request')
+    } else {
+      console.warn('N8N_API_KEY not found in environment variables')
     }
+
+    console.log('Making request to n8n with payload:', JSON.stringify(enhancedPayload, null, 2))
+
     // Call the n8n webhook
     const response = await fetch(finalWebhookUrl, {
       method: 'POST',
@@ -63,12 +76,16 @@ serve(async (req) => {
       body: JSON.stringify(enhancedPayload)
     })
 
+    console.log('n8n response status:', response.status)
+
     if (!response.ok) {
       const errorText = await response.text()
+      console.error('n8n webhook error response:', errorText)
       throw new Error(`n8n webhook failed: ${response.status} ${errorText}`)
     }
 
     const responseData = await response.json().catch(() => ({}))
+    console.log('n8n response data:', responseData)
 
     console.log(`${webhook_type} webhook completed successfully`)
 
