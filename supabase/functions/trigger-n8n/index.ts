@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface WebhookRequest {
   webhook_type: 'ingest' | 'chat' | 'template'
-  webhook_url: string
+  webhook_url?: string
   payload: any
 }
 
@@ -19,14 +19,19 @@ serve(async (req) => {
   try {
     const { webhook_type, webhook_url, payload }: WebhookRequest = await req.json()
 
-    if (!webhook_type || !webhook_url || !payload) {
-      throw new Error('Missing required parameters: webhook_type, webhook_url, payload')
+    if (!webhook_type || !payload) {
+      throw new Error('Missing required parameters: webhook_type, payload')
     }
 
     // Get webhook URL from environment if not provided
-    let finalWebhookUrl = webhook_url
-    if (webhook_type === 'chat' && !webhook_url) {
+    let finalWebhookUrl = webhook_url || ''
+    
+    if (webhook_type === 'chat' && !finalWebhookUrl) {
       finalWebhookUrl = Deno.env.get('N8N_CHAT_WEBHOOK_URL') || 'https://n8n.coralshades.ai/webhook-test/hhlm-chat'
+    }
+    
+    if (!finalWebhookUrl) {
+      throw new Error(`No webhook URL provided for ${webhook_type} webhook`)
     }
 
     console.log(`Triggering ${webhook_type} webhook: ${finalWebhookUrl}`)

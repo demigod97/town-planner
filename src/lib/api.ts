@@ -210,7 +210,7 @@ export async function sendChatMessage(
       .invoke('trigger-n8n', {
         body: {
           webhook_type: 'chat',
-          webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+          webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK || 'https://n8n.coralshades.ai/webhook-test/hhlm-chat',
           payload: {
             session_id: sessionId,
             message: message,
