@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Upload, Search } from "lucide-react";
 import { supabase } from "@/lib/api";
-import { uploadFile } from "@/lib/api";
+import { uploadFile, deleteAllSources } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { useDropzone } from "react-dropzone";
@@ -15,6 +15,7 @@ import { NetworkIndicator } from "@/components/NetworkStatus";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 
 interface Source {
   id: string;
@@ -44,6 +45,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [userQuery, setUserQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const { toast } = useToast();
   const { handleAsyncError } = useErrorHandler();
   const queryClient = useQueryClient();
@@ -142,6 +144,38 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
     input.click();
   };
 
+  const handleClearAllSources = async () => {
+    if (!confirm('Are you sure you want to delete all documents? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    
+    try {
+      await handleAsyncError(
+        () => deleteAllSources(notebookId),
+        { operation: 'delete_all_sources', notebookId }
+      );
+      
+      toast({
+        title: "All documents deleted",
+        description: "All documents have been successfully removed.",
+      });
+      
+      // Refresh the sources list
+      queryClient.invalidateQueries({ queryKey: ["sources", notebookId] });
+    } catch (error) {
+      // Error already handled by handleAsyncError
+      toast({
+        title: "Error",
+        description: "Failed to delete documents. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const filteredSources = sources.filter(source =>
     source.display_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -163,19 +197,32 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-1">
             <h2 className="font-medium text-foreground">Sources</h2>
-            <NetworkIndicator />
+            <div className="flex items-center gap-2">
+              <NetworkIndicator />
+              {filteredSources.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAllSources}
+                  disabled={isDeletingAll}
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">Select PDF documents to use as context.</p>
+          <p className="text-sm text-muted-foreground">Upload and select PDF documents.</p>
         </div>
         
         <div className="p-4 border-b space-y-4">
           {/* User Query Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">
-              What would you like to know about these documents? (Optional)
+              What would you like to know? (Optional)
             </label>
             <Textarea
-              placeholder="e.g., What are the setback requirements? What permits are needed?"
+              placeholder="e.g., What are the setback requirements?"
               value={userQuery}
               onChange={(e) => setUserQuery(e.target.value)}
               className="min-h-[80px] resize-none"
@@ -197,10 +244,10 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
             {isUploading ? (
               <p className="text-sm text-muted-foreground">Uploading files...</p>
             ) : isDragActive ? (
-              <p className="text-sm text-muted-foreground">Drop PDFs here...</p>
+              <p className="text-sm text-muted-foreground">Drop PDFs here</p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Drag & drop PDFs here or click to browse
+                Drag & drop PDFs or click to browse
               </p>
             )}
           </div>
@@ -218,7 +265,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search documents..."
+              placeholder="Search documents"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
@@ -251,7 +298,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
           ))}
           {filteredSources.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              {searchTerm ? "No documents match your search." : "No documents uploaded yet."}
+              {searchTerm ? "No documents match your search" : "No documents uploaded yet"}
             </p>
           )}
         </div>

@@ -111,7 +111,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                     <Label htmlFor="permitType">Permit Type</Label>
                     <Select {...register("permitType")}>
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Select permit type" />
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent className="bg-background border shadow-lg z-50">
                         <SelectItem value="building">Building Permit</SelectItem>
@@ -128,7 +128,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                     <Input
                       id="address"
                       {...register("address")}
-                      placeholder="123 Main Street, City, State"
+                      placeholder="Enter property address"
                       className="bg-background"
                     />
                   </div>
@@ -138,7 +138,7 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
                     <Input
                       id="applicant"
                       {...register("applicant")}
-                      placeholder="John Doe"
+                      placeholder="Enter applicant name"
                       className="bg-background"
                     />
                   </div>
