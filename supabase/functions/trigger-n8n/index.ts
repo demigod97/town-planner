@@ -23,7 +23,13 @@ serve(async (req) => {
       throw new Error('Missing required parameters: webhook_type, webhook_url, payload')
     }
 
-    console.log(`Triggering ${webhook_type} webhook: ${webhook_url}`)
+    // Get webhook URL from environment if not provided
+    let finalWebhookUrl = webhook_url
+    if (webhook_type === 'chat' && !webhook_url) {
+      finalWebhookUrl = Deno.env.get('N8N_CHAT_WEBHOOK_URL') || 'https://n8n.coralshades.ai/webhook-test/hhlm-chat'
+    }
+
+    console.log(`Triggering ${webhook_type} webhook: ${finalWebhookUrl}`)
 
     // Add webhook type to payload for n8n routing
     const enhancedPayload = {
@@ -33,7 +39,7 @@ serve(async (req) => {
     }
 
     // Call the n8n webhook
-    const response = await fetch(webhook_url, {
+    const response = await fetch(finalWebhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

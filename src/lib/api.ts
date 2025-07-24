@@ -164,9 +164,11 @@ export async function createChatSession(
   const { data, error } = await supabase
     .from('chat_sessions')
     .insert({
+      user_id: user.id,
       notebook_id: notebookId,
-      session_name: `Chat - ${new Date().toLocaleString()}`,
-      context_type: 'documents'
+      title: `Chat - ${new Date().toLocaleString()}`,
+      context_type: 'documents',
+      source_ids: sourceIds
     })
     .select()
     .single()
@@ -188,8 +190,9 @@ export async function sendChatMessage(
       .from('chat_messages')
       .insert({
         session_id: sessionId,
+        user_id: user.id,
+        role: 'user',
         content: message,
-        message_type: 'user'
       })
       .select()
       .single()
@@ -208,7 +211,7 @@ export async function sendChatMessage(
       .invoke('trigger-n8n', {
         body: {
           webhook_type: 'chat',
-          webhook_url: 'https://n8n.coralshades.ai/webhook-test/hhlm-chat',
+          webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
           payload: {
             session_id: sessionId,
             message: message,
@@ -224,16 +227,8 @@ export async function sendChatMessage(
       throw new Error('Failed to process message')
     }
 
-    // 4. Store assistant response
-    const assistantContent = chatResponse?.response || 'I received your message and am processing it.'
-    
-    await supabase
-      .from('chat_messages')
-      .insert({
-        session_id: sessionId,
-        content: assistantContent,
-        message_type: 'assistant'
-      })
+    // 4. Return success - n8n will handle storing the assistant response
+    const assistantContent = chatResponse?.response || 'Message sent to AI assistant for processing...'
 
     return {
       role: 'assistant',
