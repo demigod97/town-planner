@@ -351,23 +351,15 @@ export async function getNotebooks() {
 
 export async function getDefaultNotebook(): Promise<string> {
   const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) {
-    console.error('Authentication error:', userError)
-    throw new Error('Not authenticated')
-  }
+  if (userError || !user) throw new Error('Not authenticated')
 
   // Check for existing default notebook
-  const { data: notebooks, error: notebooksError } = await supabase
+  const { data: notebooks } = await supabase
     .from('notebooks')
     .select('id')
     .eq('user_id', user.id)
     .eq('name', 'Default Notebook')
     .limit(1)
-
-  if (notebooksError) {
-    console.error('Error fetching notebooks:', notebooksError)
-    throw new Error('Failed to fetch notebooks')
-  }
 
   if (notebooks && notebooks.length > 0) {
     return notebooks[0].id

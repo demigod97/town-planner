@@ -50,13 +50,13 @@ serve(async (req) => {
       switch (webhook_type) {
         case 'chat':
           finalWebhookUrl = Deno.env.get('VITE_N8N_CHAT_WEBHOOK') || 
-                           `${baseUrl}/webhook/hhlm-chat`
+                           `${baseUrl}/webhook-test/hhlm-chat`
           break
         case 'ingest':
-          finalWebhookUrl = `${baseUrl}/webhook/ingest`
+          finalWebhookUrl = `${baseUrl}/webhook-test/ingest`
           break
         case 'template':
-          finalWebhookUrl = `${baseUrl}/webhook/template`
+          finalWebhookUrl = `${baseUrl}/webhook-test/template`
           break
         default:
           throw new Error(`Unknown webhook_type: ${webhook_type}`)
@@ -76,161 +76,65 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }
 
-    // Try webhook without authentication first (many n8n webhooks don't require auth)
+    // Get n8n API key from Supabase secrets
+    const n8nApiKey = Deno.env.get('N8N_API_KEY')
+    console.log('N8N API Key available:', n8nApiKey ? 'yes' : 'no')
+    
+    // Prepare headers with authentication
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'Supabase-Edge-Function/1.0'
     }
+    
+    // Add API key header if available
+    if (n8nApiKey) {
+      headers['X-Api-Key'] = n8nApiKey
+      console.log('Added X-Api-Key header to request')
+    } else {
+      console.warn('N8N_API_KEY not found in environment variables')
+    }
 
-    console.log('Making request to n8n webhook without authentication first...')
-    console.log('Request headers:', Object.keys(headers))
     console.log('Making request to n8n with payload:', JSON.stringify(enhancedPayload, null, 2))
 
-    // Call the n8n webhook with timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    // Call the n8n webhook
+    const response = await fetch(finalWebhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(enhancedPayload)
+    })
 
-    try {
-      const response = await fetch(finalWebhookUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(enhancedPayload),
-        signal: controller.signal
-      })
+    console.log('n8n response status:', response.status)
+    console.log('n8n response headers:', Object.fromEntries(response.headers.entries()))
 
-      clearTimeout(timeoutId)
-
-      console.log('n8n response status:', response.status)
-      console.log('n8n response headers:', Object.fromEntries(response.headers.entries()))
-
-      // If we get 401/403, try with authentication
-      if (response.status === 401 || response.status === 403) {
-        console.log('Authentication required, retrying with API key...')
-        
-        const n8nApiKey = Deno.env.get('N8N_API_KEY')
-        if (n8nApiKey) {
-          const authHeaders = {
-            ...headers,
-            'Authorization': `Bearer ${n8nApiKey}`,
-            'X-Api-Key': n8nApiKey,
-            'X-N8N-API-KEY': n8nApiKey
-          }
-          
-          console.log('Retrying with authentication headers...')
-          
-          const authController = new AbortController()
-          const authTimeoutId = setTimeout(() => authController.abort(), 30000)
-          
-          try {
-            const authResponse = await fetch(finalWebhookUrl, {
-              method: 'POST',
-              headers: authHeaders,
-              body: JSON.stringify(enhancedPayload),
-              signal: authController.signal
-            })
-            
-            clearTimeout(authTimeoutId)
-            
-            console.log('Authenticated n8n response status:', authResponse.status)
-            
-            if (!authResponse.ok) {
-              const errorText = await authResponse.text()
-              console.error('n8n authenticated webhook error response:', errorText)
-              throw new Error(`n8n webhook failed even with authentication (${authResponse.status}): ${errorText}`)
-            }
-            
-            // Use the authenticated response
-            let responseData = {}
-            try {
-              const responseText = await authResponse.text()
-              if (responseText) {
-                responseData = JSON.parse(responseText)
-              } else {
-                responseData = { message: 'Success - no response body' }
-              }
-            } catch (jsonError) {
-              console.log('n8n response is not JSON, treating as success')
-              responseData = { message: 'Success' }
-            }
-            
-            console.log('n8n authenticated response data:', responseData)
-            console.log(`${webhook_type} webhook completed successfully with authentication`)
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                webhook_type,
-                response: responseData,
-                message: `${webhook_type} webhook triggered successfully with authentication`
-              }),
-              {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200,
-              }
-            )
-            
-          } catch (authFetchError) {
-            clearTimeout(authTimeoutId)
-            if (authFetchError.name === 'AbortError') {
-              throw new Error('n8n authenticated webhook request timed out after 30 seconds')
-            }
-            throw authFetchError
-          }
-        } else {
-          const errorText = await response.text()
-          console.error('n8n webhook requires authentication but no API key available:', errorText)
-          throw new Error(`n8n webhook requires authentication (${response.status}) but N8N_API_KEY not configured: ${errorText}`)
-        }
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('n8n webhook error response:', errorText)
-        
-        // Provide more specific error messages
-        if (response.status === 404) {
-          throw new Error(`n8n webhook not found (404): ${finalWebhookUrl}. Check if the webhook URL is correct and the workflow is active.`)
-        } else {
-          throw new Error(`n8n webhook failed (${response.status}): ${errorText}`)
-        }
-      }
-
-      let responseData = {}
-      try {
-        const responseText = await response.text()
-        if (responseText) {
-          responseData = JSON.parse(responseText)
-        } else {
-          responseData = { message: 'Success - no response body' }
-        }
-      } catch (jsonError) {
-        console.log('n8n response is not JSON, treating as success')
-        responseData = { message: 'Success' }
-      }
-      
-      console.log('n8n response data:', responseData)
-      console.log(`${webhook_type} webhook completed successfully`)
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          webhook_type,
-          response: responseData,
-          message: `${webhook_type} webhook triggered successfully`
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      )
-
-    } catch (fetchError) {
-      clearTimeout(timeoutId)
-      if (fetchError.name === 'AbortError') {
-        throw new Error('n8n webhook request timed out after 30 seconds')
-      }
-      throw fetchError
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('n8n webhook error response:', errorText)
+      throw new Error(`n8n webhook failed: ${response.status} ${errorText}`)
     }
+
+    let responseData = {}
+    try {
+      responseData = await response.json()
+    } catch (jsonError) {
+      console.log('n8n response is not JSON, treating as success')
+      responseData = { message: 'Success' }
+    }
+    
+    console.log('n8n response data:', responseData)
+    console.log(`${webhook_type} webhook completed successfully`)
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        webhook_type,
+        response: responseData,
+        message: `${webhook_type} webhook triggered successfully`
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
 
   } catch (error) {
     console.error('Error triggering n8n webhook:', error)
