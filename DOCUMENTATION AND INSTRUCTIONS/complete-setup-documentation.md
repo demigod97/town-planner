@@ -117,6 +117,25 @@ supabase secrets set OLLAMA_BASE_URL=http://host.docker.internal:11434
 supabase secrets set N8N_WEBHOOK_BASE_URL=http://host.docker.internal:5678
 ```
 
+**CRITICAL: Verify Edge Function Environment Variables**
+
+After deploying, verify that the environment variables are properly set:
+
+```bash
+# Check that secrets are set
+supabase secrets list
+
+# Test edge function with a simple request
+curl -X POST "https://your-project.supabase.co/functions/v1/process-pdf-with-metadata" \
+  -H "Authorization: Bearer YOUR_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"test": true}'
+```
+
+If you get environment variable errors:
+1. Ensure all required secrets are set using `supabase secrets set`
+2. Re-deploy the functions after setting secrets
+3. Check the function logs: `supabase functions logs process-pdf-with-metadata --follow`
 ### Step 5: n8n Workflow Setup
 
 1. **Start n8n**:

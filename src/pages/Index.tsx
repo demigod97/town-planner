@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import { getDefaultNotebook } from "@/lib/api";
+import { getDefaultNotebook, createChatSession } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { TopBar } from "@/components/TopBar";
 import { SourcesSidebar } from "@/components/SourcesSidebar";
@@ -35,33 +35,39 @@ const Index = () => {
   }, [initialized, loading, user, navigate]);
 
   useEffect(() => {
-    const initializeNotebook = async () => {
+    const initializeApp = async () => {
       try {
         const defaultNotebook = await handleAsyncError(
           () => getDefaultNotebook(),
           { operation: 'initialize_notebook' }
         );
         setNotebookId(defaultNotebook);
+        
+        // Handle session initialization
+        const currentSessionId = searchParams.get("sessionId");
+        if (currentSessionId) {
+          setSessionId(currentSessionId);
+        } else {
+          // Create new session in database and get the ID
+          const newSessionId = await handleAsyncError(
+            () => createChatSession(defaultNotebook),
+            { operation: 'create_chat_session' }
+          );
+          setSessionId(newSessionId);
+          setSearchParams({ sessionId: newSessionId });
+        }
       } catch (error) {
         // Error already handled by handleAsyncError
-        console.error("Failed to initialize notebook:", error);
+        console.error("Failed to initialize app:", error);
       }
     };
 
     // Only initialize notebook when user is authenticated
     if (initialized && !loading && user) {
-      initializeNotebook();
+      initializeApp();
     }
-
-    const currentSessionId = searchParams.get("sessionId");
-    if (currentSessionId) {
-      setSessionId(currentSessionId);
-    } else {
-      const newSessionId = uuidv4();
-      setSessionId(newSessionId);
-      setSearchParams({ sessionId: newSessionId });
-    }
-  }, [searchParams, setSearchParams, user, loading, initialized]);
+  }
+  )
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
