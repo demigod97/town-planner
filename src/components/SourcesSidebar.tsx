@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Upload, Search, CheckCircle, AlertCircle, Clock, RefreshCw } from "lucide-react";
+import { Upload, Search, CheckCircle, AlertCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/api";
 import { uploadFile, deleteAllSources } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -32,7 +32,7 @@ interface UploadProgress {
   id: string;
   fileName: string;
   progress: number;
-  status: 'uploading' | 'processing' | 'completed' | 'uploaded' | 'error';
+  status: 'uploading' | 'processing' | 'completed' | 'uploaded' | 'error' | 'transitioning';
   error?: string;
 }
 
@@ -90,10 +90,10 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
     }));
   };
 
-  const simulateUploadProgress = (fileId: string, fileName: string) => {
+  const simulateUploadProgress = (fileId: string, fileName: string): NodeJS.Timeout => {
     let progress = 0;
     const interval = setInterval(() => {
-      progress += Math.random() * 15 + 5; // Random progress between 5-20%
+      progress += Math.random() * 12 + 8; // Random progress between 8-20%
       
       if (progress >= 100) {
         progress = 100;
@@ -102,22 +102,32 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
           [fileId]: { ...prev[fileId], progress: 100, status: 'completed' }
         }));
         
-        // Transition to "uploaded" after 2-3 seconds
+        // Show completed state briefly, then transition
         setTimeout(() => {
           setUploadProgress(prev => ({
             ...prev,
-            [fileId]: { ...prev[fileId], status: 'uploaded' }
+            [fileId]: { ...prev[fileId], status: 'transitioning' }
           }));
           
-          // Remove from progress tracking after another 2 seconds
+          // Transition to uploaded after brief pause
           setTimeout(() => {
             setUploadProgress(prev => {
-              const newProgress = { ...prev };
-              delete newProgress[fileId];
-              return newProgress;
+              return {
+                ...prev,
+                [fileId]: { ...prev[fileId], status: 'uploaded' }
+              };
             });
-          }, 2000);
-        }, 2500);
+            
+            // Remove from progress tracking after showing uploaded status
+            setTimeout(() => {
+              setUploadProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[fileId];
+                return newProgress;
+              });
+            }, 3000);
+          }, 1500);
+        }, 2000);
         
         clearInterval(interval);
       } else {
@@ -126,7 +136,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
           [fileId]: { ...prev[fileId], progress, status: 'uploading' }
         }));
       }
-    }, 200);
+    }, 150); // Slightly faster updates for smoother animation
 
     return interval;
   };
@@ -260,12 +270,33 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'uploaded':
         return <CheckCircle className="w-4 h-4 text-blue-500" />;
+      case 'transitioning':
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
       case 'processing':
         return <Clock className="w-4 h-4 text-blue-500 animate-pulse" />;
+      case 'uploading':
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
       case 'error':
         return <AlertCircle className="w-4 h-4 text-red-500" />;
       default:
         return <Upload className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getStatusText = (status: string, progress: number) => {
+    switch (status) {
+      case 'uploading':
+        return `Uploading... ${Math.round(progress)}%`;
+      case 'completed':
+        return 'Upload Complete!';
+      case 'transitioning':
+        return 'Processing...';
+      case 'uploaded':
+        return 'Successfully Uploaded';
+      case 'error':
+        return 'Upload Failed';
+      default:
+        return 'Preparing...';
     }
   };
 
@@ -367,9 +398,9 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {progress.status === 'uploading' && (
+                      {(progress.status === 'uploading' || progress.status === 'transitioning') && (
                         <span className="text-xs text-muted-foreground">
-                          {Math.round(progress.progress)}%
+                          {progress.status === 'uploading' ? `${Math.round(progress.progress)}%` : ''}
                         </span>
                       )}
                       {progress.status === 'error' && (
@@ -385,22 +416,28 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
                     </div>
                   </div>
                   
+                  {/* Status Text */}
+                  <div className="text-xs font-medium text-center">
+                    <span className={`${
+                      progress.status === 'completed' ? 'text-green-600' :
+                      progress.status === 'uploaded' ? 'text-blue-600' :
+                      progress.status === 'error' ? 'text-red-600' :
+                      'text-muted-foreground'
+                    }`}>
+                      {getStatusText(progress.status, progress.progress)}
+                    </span>
+                  </div>
+                  
                   {progress.status === 'uploading' && (
                     <Progress 
                       value={progress.progress} 
-                      className="h-2 w-full"
+                      className="h-2 w-full bg-muted"
                     />
                   )}
                   
-                  {progress.status === 'completed' && (
-                    <div className="text-xs text-green-600 font-medium">
-                      Upload completed! Processing...
-                    </div>
-                  )}
-                  
-                  {progress.status === 'uploaded' && (
-                    <div className="text-xs text-blue-600 font-medium">
-                      Successfully uploaded and processed
+                  {progress.status === 'transitioning' && (
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }} />
                     </div>
                   )}
                   

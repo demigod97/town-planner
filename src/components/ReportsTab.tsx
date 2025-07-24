@@ -3,14 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, Download, Search, Calendar, User, MapPin, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { FileText, Download, Search, Calendar, User, MapPin, Loader2, AlertCircle, RefreshCw, Eye, X } from "lucide-react";
 import { supabase } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingWithError } from "@/components/ui/error-display";
+import { Progress } from "@/components/ui/progress";
 
 interface Report {
   id: string;
@@ -36,6 +37,7 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
   const [reportContent, setReportContent] = useState<string>("");
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [contentError, setContentError] = useState<string>("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
   const { handleAsyncError } = useErrorHandler();
 
@@ -99,6 +101,7 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
   };
 
   const downloadReport = async (report: Report) => {
+    setIsDownloading(true);
     try {
       if (!report.file_path) {
         throw new Error("Report file not available for download");
@@ -132,21 +135,30 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
         description: error.message || "Failed to download report",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
   const formatMarkdownToHtml = (markdown: string): string => {
-    // Simple markdown to HTML conversion
+    // Enhanced markdown to HTML conversion with better styling
     return markdown
-      .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mb-4 text-gray-900">$1</h1>')
-      .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mb-3 text-gray-800 mt-6">$1</h2>')
-      .replace(/^### (.*$)/gim, '<h3 class="text-lg font-medium mb-2 text-gray-700 mt-4">$1</h3>')
-      .replace(/^\*\*(.*)\*\*/gim, '<strong class="font-semibold">$1</strong>')
-      .replace(/^\*(.*)\*/gim, '<em class="italic">$1</em>')
-      .replace(/^- (.*$)/gim, '<li class="ml-4 mb-1">$1</li>')
-      .replace(/^---$/gim, '<hr class="my-6 border-gray-300" />')
-      .replace(/\n\n/g, '</p><p class="mb-4 text-gray-700 leading-relaxed">')
-      .replace(/^(?!<[h|l|p|d])(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed">$1</p>');
+      .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold mb-6 text-gray-900 border-b-2 border-gray-200 pb-3">$1</h1>')
+      .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-semibold mb-4 text-gray-800 mt-8 border-b border-gray-200 pb-2">$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3 class="text-xl font-medium mb-3 text-gray-700 mt-6">$1</h3>')
+      .replace(/^#### (.*$)/gim, '<h4 class="text-lg font-medium mb-2 text-gray-700 mt-4">$1</h4>')
+      .replace(/^\*\*(.*?)\*\*/gim, '<strong class="font-semibold text-gray-900">$1</strong>')
+      .replace(/^\*(.*?)\*/gim, '<em class="italic text-gray-700">$1</em>')
+      .replace(/^- (.*$)/gim, '<li class="ml-6 mb-2 text-gray-700">$1</li>')
+      .replace(/^(\d+)\. (.*$)/gim, '<li class="ml-6 mb-2 text-gray-700 list-decimal">$2</li>')
+      .replace(/^---$/gim, '<hr class="my-8 border-gray-300 border-t-2" />')
+      .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">$1</code>')
+      .replace(/\n\n/g, '</p><p class="mb-4 text-gray-700 leading-relaxed text-justify">')
+      .replace(/^(?!<[h|l|p|d|c])(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed text-justify">$1</p>')
+      .replace(/<li class="ml-6 mb-2 text-gray-700">/g, '<ul class="mb-4"><li class="ml-6 mb-2 text-gray-700">')
+      .replace(/<\/li>(?!\s*<li)/g, '</li></ul>')
+      .replace(/<li class="ml-6 mb-2 text-gray-700 list-decimal">/g, '<ol class="mb-4 list-decimal"><li class="ml-6 mb-2 text-gray-700">')
+      .replace(/<\/li>(?!\s*<li class="ml-6 mb-2 text-gray-700 list-decimal">)/g, '</li></ol>');
   };
 
   const getStatusColor = (status: string) => {
@@ -176,6 +188,12 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
     report.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const closeModal = () => {
+    setSelectedReport(null);
+    setReportContent("");
+    setContentError("");
+  };
+
   return (
     <ComponentErrorBoundary>
       <div className="space-y-4">
@@ -190,7 +208,7 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
               placeholder="Search reports..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
+              className="pl-8 bg-background"
             />
           </div>
         </div>
@@ -201,7 +219,7 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
           retry={() => refetch()}
           fallbackMessage="Failed to load reports"
         >
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          <div className="space-y-3 max-h-[400px] overflow-y-auto mobile-scroll">
             {filteredReports.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
@@ -218,46 +236,60 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
               filteredReports.map((report) => (
                 <div
                   key={report.id}
-                  className="p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors cursor-pointer"
+                  className="p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors cursor-pointer group"
                   onClick={() => handleReportClick(report)}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-foreground truncate">
+                      <h4 className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
                         {report.title}
                       </h4>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                         {report.topic}
                       </p>
                     </div>
-                    <Badge variant={getStatusColor(report.status)} className="text-xs ml-2">
-                      {report.status}
-                    </Badge>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Badge variant={getStatusColor(report.status)} className="text-xs">
+                        {report.status}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadReport(report);
+                        }}
+                        disabled={isDownloading || !report.file_path}
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Download className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-1">
                     {report.address && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">{report.address}</span>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
                       <span>{new Date(report.created_at).toLocaleDateString()}</span>
                     </div>
                     
                     {report.file_size && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <FileText className="h-3 w-3" />
+                        <FileText className="h-3 w-3 flex-shrink-0" />
                         <span>{formatFileSize(report.file_size)}</span>
                       </div>
                     )}
                   </div>
                   
                   {report.status === 'processing' && (
-                    <div className="mt-2">
+                    <div className="mt-3">
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                         <span>Progress</span>
                         <span>{report.progress}%</span>
@@ -271,36 +303,80 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
           </div>
         </LoadingWithError>
 
-        {/* Report Content Modal */}
-        <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <span>{selectedReport?.title}</span>
+        {/* Enhanced Report Content Modal */}
+        <Dialog open={!!selectedReport} onOpenChange={(open) => !open && closeModal()}>
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
+            <DialogHeader className="flex-shrink-0 border-b pb-4">
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-xl font-bold text-gray-900 pr-8">
+                  {selectedReport?.title}
+                </DialogTitle>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => selectedReport && downloadReport(selectedReport)}
-                    disabled={!selectedReport?.file_path}
+                    disabled={isDownloading || !selectedReport?.file_path}
+                    className="flex items-center gap-2"
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
+                    {isDownloading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    {isDownloading ? 'Downloading...' : 'Download'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeModal}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
-              </DialogTitle>
+              </div>
+              
+              {/* Report Metadata */}
+              {selectedReport && (
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-3">
+                  <div className="flex items-center gap-1">
+                    <User className="h-4 w-4" />
+                    <span>Topic: {selectedReport.topic}</span>
+                  </div>
+                  {selectedReport.address && (
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>{selectedReport.address}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    <span>{new Date(selectedReport.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {selectedReport.file_size && (
+                    <div className="flex items-center gap-1">
+                      <FileText className="h-4 w-4" />
+                      <span>{formatFileSize(selectedReport.file_size)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </DialogHeader>
             
             <div className="flex-1 overflow-hidden">
               {isLoadingContent ? (
-                <div className="flex items-center justify-center py-12">
+                <div className="flex items-center justify-center py-12 h-full">
                   <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
                     <p className="text-sm text-muted-foreground">Loading report content...</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Converting markdown to formatted document
+                    </p>
                   </div>
                 </div>
               ) : contentError ? (
-                <div className="flex items-center justify-center py-12">
+                <div className="flex items-center justify-center py-12 h-full">
                   <div className="text-center">
                     <AlertCircle className="h-8 w-8 mx-auto mb-3 text-destructive" />
                     <p className="text-sm text-destructive mb-3">{contentError}</p>
@@ -315,38 +391,57 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
                   </div>
                 </div>
               ) : (
-                <ScrollArea className="h-[60vh] w-full">
-                  <div className="p-6 bg-white rounded-lg border">
-                    {/* Report Header */}
-                    <div className="mb-6 pb-4 border-b">
-                      <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                        {selectedReport?.title}
-                      </h1>
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          <span>Topic: {selectedReport?.topic}</span>
-                        </div>
-                        {selectedReport?.address && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-4 w-4" />
-                            <span>{selectedReport.address}</span>
+                <ScrollArea className="h-full w-full">
+                  <div className="p-8 bg-white rounded-lg border shadow-sm max-w-4xl mx-auto">
+                    {/* Document Header */}
+                    <div className="mb-8 pb-6 border-b-2 border-gray-200">
+                      <div className="text-center">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                          {selectedReport?.title}
+                        </h1>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 max-w-2xl mx-auto">
+                          <div className="flex items-center justify-center gap-2">
+                            <User className="h-4 w-4" />
+                            <span><strong>Project:</strong> {selectedReport?.topic}</span>
                           </div>
-                        )}
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{selectedReport && new Date(selectedReport.created_at).toLocaleDateString()}</span>
+                          {selectedReport?.address && (
+                            <div className="flex items-center justify-center gap-2">
+                              <MapPin className="h-4 w-4" />
+                              <span><strong>Address:</strong> {selectedReport.address}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            <span><strong>Date:</strong> {selectedReport && new Date(selectedReport.created_at).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex items-center justify-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span><strong>Format:</strong> Planning Report</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                     
-                    {/* Report Content */}
-                    <div 
-                      className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ 
-                        __html: formatMarkdownToHtml(reportContent) 
-                      }}
-                    />
+                    {/* Document Content with Word-like styling */}
+                    <div className="prose prose-lg max-w-none">
+                      <div 
+                        className="document-content"
+                        dangerouslySetInnerHTML={{ 
+                          __html: formatMarkdownToHtml(reportContent) 
+                        }}
+                        style={{
+                          fontFamily: 'Georgia, "Times New Roman", serif',
+                          lineHeight: '1.6',
+                          fontSize: '16px'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Document Footer */}
+                    <div className="mt-12 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
+                      <p>Generated by Town Planner Assistant</p>
+                      <p>Report ID: {selectedReport?.id}</p>
+                    </div>
                   </div>
                 </ScrollArea>
               )}

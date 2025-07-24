@@ -113,9 +113,10 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
 
   if (loadError) {
     return (
-      <div className="text-center py-8">
-        <p className="text-sm text-destructive mb-3">Failed to load Google Maps</p>
-        <p className="text-xs text-muted-foreground">
+      <div className="text-center py-8 px-4">
+        <MapPin className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+        <p className="text-sm text-destructive mb-2">Failed to load Google Maps</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
           Please check your Google Maps API key configuration
         </p>
       </div>
@@ -124,84 +125,92 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
 
   return (
     <ComponentErrorBoundary>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="address" className="text-sm font-medium text-foreground">
-            Property Address
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              id="address"
-              placeholder="Enter address to search"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="flex-1 bg-background"
-              onKeyPress={(e) => e.key === 'Enter' && handleAddressSearch()}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddressSearch}
-              disabled={isSearching || !address.trim()}
-              className="px-3"
-            >
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+      <div className="space-y-4 h-full">
+        <div>
+          <h3 className="text-sm font-medium text-foreground mb-3">
+            Location & Mapping
+          </h3>
           
-          {searchError && (
-            <p className="text-xs text-destructive">{searchError}</p>
-          )}
-        </div>
-
-        <div className="border rounded-lg overflow-hidden">
-          {isLoaded && selectedPlace ? (
-            <GoogleMap
-              mapContainerStyle={{ width: "100%", height: "200px" }}
-              center={{ lat: selectedPlace.lat, lng: selectedPlace.lng }}
-              zoom={16}
-              options={mapOptions}
-            >
-              <Marker 
-                position={{ lat: selectedPlace.lat, lng: selectedPlace.lng }}
-                title={selectedPlace.address}
-              />
-            </GoogleMap>
-          ) : (
-            <div className="h-[200px] bg-muted/50 flex items-center justify-center">
-              <div className="text-center">
-                {!isLoaded ? (
-                  <>
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Loading map...</p>
-                  </>
-                ) : (
-                  <>
-                    <MapPin className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Enter an address to view location
-                    </p>
-                  </>
-                )}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-sm font-medium text-foreground">
+                Property Address
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="address"
+                  placeholder="Enter address to search"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="flex-1 bg-background"
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddressSearch()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddressSearch}
+                  disabled={isSearching || !address.trim()}
+                  className="px-3"
+                >
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
+              
+              {searchError && (
+                <p className="text-xs text-destructive">{searchError}</p>
+              )}
             </div>
-          )}
-        </div>
 
-        {selectedPlace && (
-          <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-            <h4 className="text-sm font-medium text-foreground">Selected Location</h4>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Address:</strong> {selectedPlace.address}</p>
-              <p><strong>Coordinates:</strong> {selectedPlace.lat.toFixed(6)}, {selectedPlace.lng.toFixed(6)}</p>
-              <p><strong>Place ID:</strong> {selectedPlace.placeId}</p>
+            <div className="border rounded-lg overflow-hidden">
+              {isLoaded && selectedPlace ? (
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: "200px" }}
+                  center={{ lat: selectedPlace.lat, lng: selectedPlace.lng }}
+                  zoom={16}
+                  options={mapOptions}
+                >
+                  <Marker 
+                    position={{ lat: selectedPlace.lat, lng: selectedPlace.lng }}
+                    title={selectedPlace.address}
+                  />
+                </GoogleMap>
+              ) : (
+                <div className="h-[200px] bg-muted/50 flex items-center justify-center">
+                  <div className="text-center px-4">
+                    {!isLoaded ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Loading map...</p>
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground text-center">
+                          Enter an address to view location
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {selectedPlace && (
+              <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                <h4 className="text-sm font-medium text-foreground">Selected Location</h4>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong>Address:</strong> {selectedPlace.address}</p>
+                  <p><strong>Coordinates:</strong> {selectedPlace.lat.toFixed(6)}, {selectedPlace.lng.toFixed(6)}</p>
+                  <p><strong>Place ID:</strong> {selectedPlace.placeId}</p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </ComponentErrorBoundary>
   );

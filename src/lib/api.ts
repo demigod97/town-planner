@@ -416,6 +416,7 @@ export async function getReports(notebookId: string) {
         .from('report_generations')
         .select('*')
         .eq('notebook_id', notebookId)
+        .eq('file_format', 'markdown')
         .order('created_at', { ascending: false })
       
       if (error) throw error
@@ -457,6 +458,70 @@ export async function downloadReportFile(filePath: string, fileName: string): Pr
     const a = document.createElement('a')
     a.href = url
     a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Download failed:', error)
+    throw error
+  }
+}
+
+// Enhanced report management with better error handling
+export async function getReportsByNotebook(notebookId: string) {
+  return await fetchWithErrorHandling(
+    async () => {
+      const { data, error } = await supabase
+        .from('report_generations')
+        .select(`
+          id,
+          title,
+          topic,
+          address,
+          status,
+          file_path,
+          file_format,
+          file_size,
+          progress,
+          created_at,
+          completed_at,
+          error_message
+        `)
+        .eq('notebook_id', notebookId)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data || []
+    },
+    `reports_detailed_${notebookId}`,
+    []
+  )
+}
+
+export async function downloadReportAsMarkdown(reportId: string, title: string): Promise<void> {
+  try {
+    const { data: report, error: reportError } = await supabase
+      .from('report_generations')
+      .select('file_path')
+      .eq('id', reportId)
+      .single()
+
+    if (reportError) throw reportError
+    if (!report?.file_path) throw new Error('Report file not found')
+
+    const { data, error } = await supabase.storage
+      .from('reports')
+      .download(report.file_path)
+    
+    if (error) throw error
+
+    // Create download link
+    const blob = new Blob([data], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.md`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

@@ -106,7 +106,7 @@ export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: Permi
               <TabsTrigger value="reports">Reports</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="actions" className="space-y-4">
+            <TabsContent value="actions" className="space-y-4 flex-1 overflow-auto">
               <div>
                 <h3 className="text-sm font-medium text-foreground mb-3">
                   Permit Template Generator
@@ -199,36 +199,28 @@ export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: Permi
               </div>
             </TabsContent>
             
-            <TabsContent value="map" className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-foreground mb-3">
-                  Location & Mapping
-                </h3>
-                
+            <TabsContent value="map" className="flex-1 overflow-auto">
                 {sessionId ? (
                   <MapTab sessionId={sessionId} />
                 ) : (
-                  <div className="text-center py-8">
+                  <div className="text-center py-8 px-4">
                     <p className="text-sm text-muted-foreground">
                       Session required for map functionality
                     </p>
                   </div>
                 )}
-              </div>
             </TabsContent>
             
-            <TabsContent value="reports" className="space-y-4">
-              <div>
+            <TabsContent value="reports" className="flex-1 overflow-auto">
                 {notebookId ? (
                   <ReportsTab notebookId={notebookId} />
                 ) : (
-                  <div className="text-center py-8">
+                  <div className="text-center py-8 px-4">
                     <p className="text-sm text-muted-foreground">
                       Notebook required for reports functionality
                     </p>
                   </div>
                 )}
-              </div>
             </TabsContent>
           </Tabs>
         </div>
