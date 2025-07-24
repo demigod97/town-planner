@@ -143,6 +143,12 @@ const FileUploadErrorDisplay: React.FC<{
     if (error.includes('network')) {
       return ['Check your internet connection', 'Try uploading again'];
     }
+    if (error.includes('timeout')) {
+      return ['The upload took too long', 'Try uploading a smaller file', 'Check your internet connection'];
+    }
+    if (error.includes('storage')) {
+      return ['Storage service temporarily unavailable', 'Try again in a few moments'];
+    }
     return ['Try uploading the file again', 'Contact support if the problem persists'];
   };
 

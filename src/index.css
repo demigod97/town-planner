@@ -140,4 +140,177 @@ All colors MUST be HSL.
   .swipe-area {
     touch-action: pan-x pan-y;
   }
+
+  /* Progress bar animations */
+  .progress-bar-smooth {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Enhanced progress animations */
+  .upload-progress-smooth {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .status-transition-smooth {
+    transition: all 0.3s ease-in-out;
+  }
+
+  /* Report content styling */
+  .prose {
+    max-width: none;
+  }
+  
+  .prose h1 {
+    @apply text-2xl font-bold mb-4 text-gray-900 border-b pb-2;
+  }
+  
+  .prose h2 {
+    @apply text-xl font-semibold mb-3 text-gray-800 mt-6;
+  }
+  
+  .prose h3 {
+    @apply text-lg font-medium mb-2 text-gray-700 mt-4;
+  }
+  
+  .prose p {
+    @apply mb-4 text-gray-700 leading-relaxed;
+  }
+  
+  .prose ul {
+    @apply mb-4 ml-6 list-disc;
+  }
+  
+  .prose li {
+    @apply mb-1 text-gray-700;
+  }
+  
+  .prose strong {
+    @apply font-semibold text-gray-900;
+  }
+  
+  .prose em {
+    @apply italic;
+  }
+  
+  .prose hr {
+    @apply my-6 border-gray-300;
+  }
+
+  /* Document content styling for Word-like appearance */
+  .document-content {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  .document-content h1 {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 24px;
+    color: #1a1a1a;
+    text-align: center;
+    border-bottom: 3px solid #e5e7eb;
+    padding-bottom: 16px;
+  }
+
+  .document-content h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 16px;
+    color: #374151;
+    border-bottom: 1px solid #d1d5db;
+    padding-bottom: 8px;
+  }
+
+  .document-content h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    color: #4b5563;
+  }
+
+  .document-content p {
+    margin-bottom: 16px;
+    text-align: justify;
+    text-indent: 0;
+  }
+
+  .document-content ul, .document-content ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+  }
+
+  .document-content li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+
+  .document-content strong {
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .document-content code {
+    background-color: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 14px;
+  }
+
+  .document-content hr {
+    margin: 32px 0;
+    border: none;
+    border-top: 2px solid #e5e7eb;
+  }
+
+  /* Upload progress animations */
+  @keyframes upload-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  .upload-progress {
+    animation: upload-pulse 2s ease-in-out infinite;
+  }
+
+  /* Smooth status transitions */
+  @keyframes status-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .status-fade-in {
+    animation: status-fade-in 0.3s ease-out;
+  }
+
+  /* Status transition animations */
+  .status-transition {
+    transition: all 0.3s ease-in-out;
+  }
+
+  /* Print styles for reports */
+  @media print {
+    .document-content {
+      font-size: 12pt;
+      line-height: 1.5;
+    }
+    
+    .document-content h1 {
+      font-size: 18pt;
+      page-break-after: avoid;
+    }
+    
+    .document-content h2 {
+      font-size: 16pt;
+      page-break-after: avoid;
+    }
+    
+    .document-content h3 {
+      font-size: 14pt;
+      page-break-after: avoid;
+    }
+  }
 }

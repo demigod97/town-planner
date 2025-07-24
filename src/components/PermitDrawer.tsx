@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapTab } from "./MapTab";
+import { ReportsTab } from "./ReportsTab";
 import { MapPreview } from "./MapPreview";
 import { template, genTemplate } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
@@ -16,10 +17,11 @@ import { ValidationErrorDisplay, InlineError } from "@/components/ui/error-displ
 
 interface PermitDrawerProps {
   sessionId?: string;
+  notebookId?: string;
   onTemplateCreated?: (id: string) => void;
 }
 
-export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps) => {
+export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: PermitDrawerProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [preview, setPreview] = useState<string>('');
   const [download, setDownload] = useState<string>('');
@@ -42,7 +44,6 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
     setSubmitError("");
     
     try {
-      // Validate required fields
       const errors: Record<string, string> = {};
       
       if (!data.permitType) errors.permitType = 'Please select a permit type';
@@ -94,17 +95,18 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
       <div className="w-[340px] bg-sidebar-custom border-l h-full flex flex-col">
         <div className="p-4 border-b">
           <h2 className="font-medium text-foreground">Assistant Actions</h2>
-          <p className="text-sm text-muted-foreground">Generate permits and view locations.</p>
+          <p className="text-sm text-muted-foreground">Generate permits, view locations, and manage reports.</p>
         </div>
         
         <div className="flex-1 p-4">
           <Tabs defaultValue="actions" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
               <TabsTrigger value="actions">Actions</TabsTrigger>
               <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="reports">Reports</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="actions" className="space-y-4">
+            <TabsContent value="actions" className="space-y-4 flex-1 overflow-auto">
               <div>
                 <h3 className="text-sm font-medium text-foreground mb-3">
                   Permit Template Generator
@@ -197,20 +199,28 @@ export const PermitDrawer = ({ sessionId, onTemplateCreated }: PermitDrawerProps
               </div>
             </TabsContent>
             
-            <TabsContent value="map" className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-foreground mb-3">
-                  Location & Mapping
-                </h3>
-                
+            <TabsContent value="map" className="flex-1 overflow-auto">
                 {sessionId ? (
                   <MapTab sessionId={sessionId} />
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Session required for map functionality
-                  </p>
+                  <div className="text-center py-8 px-4">
+                    <p className="text-sm text-muted-foreground">
+                      Session required for map functionality
+                    </p>
+                  </div>
                 )}
-              </div>
+            </TabsContent>
+            
+            <TabsContent value="reports" className="flex-1 overflow-auto">
+                {notebookId ? (
+                  <ReportsTab notebookId={notebookId} />
+                ) : (
+                  <div className="text-center py-8 px-4">
+                    <p className="text-sm text-muted-foreground">
+                      Notebook required for reports functionality
+                    </p>
+                  </div>
+                )}
             </TabsContent>
           </Tabs>
         </div>

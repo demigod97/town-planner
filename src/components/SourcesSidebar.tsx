@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Upload, Search } from "lucide-react";
+import { Upload, Search, CheckCircle, AlertCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/api";
 import { uploadFile, deleteAllSources } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,14 @@ interface Source {
   updated_at: string;
 }
 
+interface UploadProgress {
+  id: string;
+  fileName: string;
+  progress: number;
+  status: 'uploading' | 'processing' | 'completed' | 'uploaded' | 'error' | 'transitioning';
+  error?: string;
+}
+
 interface SourcesSidebarProps {
   notebookId: string;
 }
@@ -43,7 +51,7 @@ const formatFileSize = (bytes: number) => {
 export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<Record<string, boolean>>({});
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [userQuery, setUserQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -67,7 +75,6 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
       }, { operation: 'fetch_sources', notebookId });
     },
     retry: (failureCount, error) => {
-      // Retry up to 3 times for network errors
       if (failureCount < 3 && error.message?.includes('fetch')) {
         return true;
       }
@@ -83,6 +90,57 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
     }));
   };
 
+  const simulateUploadProgress = (fileId: string, fileName: string): NodeJS.Timeout => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 12 + 8; // Random progress between 8-20%
+      
+      if (progress >= 100) {
+        progress = 100;
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: { ...prev[fileId], progress: 100, status: 'completed' }
+        }));
+        
+        // Show completed state briefly, then transition
+        setTimeout(() => {
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: { ...prev[fileId], status: 'transitioning' }
+          }));
+          
+          // Transition to uploaded after brief pause
+          setTimeout(() => {
+            setUploadProgress(prev => {
+              return {
+                ...prev,
+                [fileId]: { ...prev[fileId], status: 'uploaded' }
+              };
+            });
+            
+            // Remove from progress tracking after showing uploaded status
+            setTimeout(() => {
+              setUploadProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[fileId];
+                return newProgress;
+              });
+            }, 3000);
+          }, 1500);
+        }, 2000);
+        
+        clearInterval(interval);
+      } else {
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: { ...prev[fileId], progress, status: 'uploading' }
+        }));
+      }
+    }, 150); // Slightly faster updates for smoother animation
+
+    return interval;
+  };
+
   const onDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     
@@ -90,9 +148,23 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
     setIsUploading(true);
     
     for (const file of acceptedFiles) {
+      const fileId = `${Date.now()}-${file.name}`;
+      
+      // Initialize progress tracking
+      setUploadProgress(prev => ({
+        ...prev,
+        [fileId]: {
+          id: fileId,
+          fileName: file.name,
+          progress: 0,
+          status: 'uploading'
+        }
+      }));
+
+      // Start progress simulation
+      const progressInterval = simulateUploadProgress(fileId, file.name);
+
       try {
-        setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
-        
         console.log('Starting file upload:', file.name);
         const result = await handleAsyncError(
           () => uploadFile(file, notebookId, userQuery.trim() || undefined),
@@ -109,16 +181,22 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         setUserQuery("");
         
         // Refresh the sources list
-        queryClient.invalidateQueries({ queryKey: ["sources", notebookId] })
+        queryClient.invalidateQueries({ queryKey: ["sources", notebookId] });
+        
       } catch (error) {
         console.error('File upload failed:', error);
+        clearInterval(progressInterval);
+        
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: {
+            ...prev[fileId],
+            status: 'error',
+            error: error.message || 'Upload failed'
+          }
+        }));
+        
         setUploadError(error.message || 'Upload failed');
-      } finally {
-        setUploadProgress((prev) => {
-          const newProgress = { ...prev };
-          delete newProgress[file.name];
-          return newProgress;
-        });
       }
     }
     
@@ -165,10 +243,8 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         description: "All documents have been successfully removed.",
       });
       
-      // Refresh the sources list
       queryClient.invalidateQueries({ queryKey: ["sources", notebookId] });
     } catch (error) {
-      // Error already handled by handleAsyncError
       toast({
         title: "Error",
         description: "Failed to delete documents. Please try again.",
@@ -176,6 +252,51 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
       });
     } finally {
       setIsDeletingAll(false);
+    }
+  };
+
+  const retryUpload = (fileId: string) => {
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[fileId];
+      return newProgress;
+    });
+    setUploadError("");
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'uploaded':
+        return <CheckCircle className="w-4 h-4 text-blue-500" />;
+      case 'transitioning':
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      case 'processing':
+        return <Clock className="w-4 h-4 text-blue-500 animate-pulse" />;
+      case 'uploading':
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Upload className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getStatusText = (status: string, progress: number) => {
+    switch (status) {
+      case 'uploading':
+        return `Uploading... ${Math.round(progress)}%`;
+      case 'completed':
+        return 'Upload Complete!';
+      case 'transitioning':
+        return 'Processing...';
+      case 'uploaded':
+        return 'Successfully Uploaded';
+      case 'error':
+        return 'Upload Failed';
+      default:
+        return 'Preparing...';
     }
   };
 
@@ -223,10 +344,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
           {uploadError && (
             <FileUploadErrorDisplay
               error={uploadError}
-              retry={() => {
-                setUploadError("");
-                // Retry with last uploaded files if available
-              }}
+              retry={() => setUploadError("")}
             />
           )}
           
@@ -265,6 +383,73 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
               </p>
             )}
           </div>
+          
+          {/* Upload Progress Indicators */}
+          {Object.keys(uploadProgress).length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-foreground">Upload Progress</h3>
+              {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                <div key={fileId} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(progress.status)}
+                      <span className="text-sm font-medium truncate max-w-[150px]">
+                        {progress.fileName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(progress.status === 'uploading' || progress.status === 'transitioning') && (
+                        <span className="text-xs text-muted-foreground">
+                          {progress.status === 'uploading' ? `${Math.round(progress.progress)}%` : ''}
+                        </span>
+                      )}
+                      {progress.status === 'error' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => retryUpload(fileId)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Status Text */}
+                  <div className="text-xs font-medium text-center">
+                    <span className={`${
+                      progress.status === 'completed' ? 'text-green-600' :
+                      progress.status === 'uploaded' ? 'text-blue-600' :
+                      progress.status === 'error' ? 'text-red-600' :
+                      'text-muted-foreground'
+                    }`}>
+                      {getStatusText(progress.status, progress.progress)}
+                    </span>
+                  </div>
+                  
+                  {progress.status === 'uploading' && (
+                    <Progress 
+                      value={progress.progress} 
+                      className="h-2 w-full bg-muted"
+                    />
+                  )}
+                  
+                  {progress.status === 'transitioning' && (
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }} />
+                    </div>
+                  )}
+                  
+                  {progress.status === 'error' && progress.error && (
+                    <div className="text-xs text-red-600">
+                      {progress.error}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           
           {/* Manual Upload Button */}
           <Button 
