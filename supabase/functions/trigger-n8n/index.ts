@@ -43,13 +43,23 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }
 
+    // Get n8n API key for authentication
+    const n8nApiKey = Deno.env.get('N8N_API_KEY')
+    
+    // Prepare headers with authentication
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Supabase-Edge-Function/1.0'
+    }
+    
+    // Add API key header if available
+    if (n8nApiKey) {
+      headers['X-Api-Key'] = n8nApiKey
+    }
     // Call the n8n webhook
     const response = await fetch(finalWebhookUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Supabase-Edge-Function/1.0'
-      },
+      headers,
       body: JSON.stringify(enhancedPayload)
     })
 
