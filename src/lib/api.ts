@@ -256,7 +256,7 @@ export async function createNotebook(
     .from('notebooks')
     .insert({
       user_id: user.id,
-      title: name,
+      name: name,
       project_type: projectType
     })
     .select()
@@ -285,7 +285,7 @@ export async function getDefaultNotebook(): Promise<string> {
     .from('notebooks')
     .select('id')
     .eq('user_id', user.id)
-    .eq('title', 'Default Notebook')
+    .eq('name', 'Default Notebook')
     .single()
 
   if (notebooks?.id) {
