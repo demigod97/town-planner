@@ -17,7 +17,7 @@ interface ErrorDisplayProps {
   context?: string;
 }
 
-export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
+const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   title = 'Error',
   message,
   type = 'error',
