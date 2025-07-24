@@ -101,8 +101,19 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   );
 };
 
+// Inline error component for form fields and small spaces
+const InlineError: React.FC<{ message: string; className?: string }> = ({ 
+  message, 
+  className = '' 
+}) => (
+  <div className={`flex items-center text-sm text-destructive mt-1 ${className}`}>
+    <AlertCircle className="h-3 w-3 mr-1 flex-shrink-0" />
+    <span>{message}</span>
+  </div>
+);
+
 // Specialized error displays for common scenarios
-export const NetworkErrorDisplay: React.FC<{ retry?: () => void }> = ({ retry }) => (
+const NetworkErrorDisplay: React.FC<{ retry?: () => void }> = ({ retry }) => (
   <ErrorDisplay
     title="Connection Problem"
     message="Unable to connect to the server. Please check your internet connection."
@@ -117,7 +128,7 @@ export const NetworkErrorDisplay: React.FC<{ retry?: () => void }> = ({ retry })
   />
 );
 
-export const FileUploadErrorDisplay: React.FC<{ 
+const FileUploadErrorDisplay: React.FC<{ 
   error: string; 
   retry?: () => void;
   fileName?: string;
@@ -147,7 +158,7 @@ export const FileUploadErrorDisplay: React.FC<{
   );
 };
 
-export const ValidationErrorDisplay: React.FC<{ 
+const ValidationErrorDisplay: React.FC<{ 
   errors: Record<string, string>;
   onFieldFocus?: (field: string) => void;
 }> = ({ errors, onFieldFocus }) => (
@@ -172,7 +183,7 @@ export const ValidationErrorDisplay: React.FC<{
 );
 
 // Loading state with error fallback and timeout
-export const LoadingWithError: React.FC<{
+const LoadingWithError: React.FC<{
   isLoading: boolean;
   error?: Error | null;
   retry?: () => void;
@@ -246,7 +257,7 @@ export const LoadingWithError: React.FC<{
 };
 
 // Error summary component for debugging
-export const ErrorSummary: React.FC = () => {
+const ErrorSummary: React.FC = () => {
   const [errorStats, setErrorStats] = React.useState<any>(null);
 
   React.useEffect(() => {
@@ -299,4 +310,15 @@ export const ErrorSummary: React.FC = () => {
       </CardContent>
     </Card>
   );
+};
+
+// Export all components
+export {
+  ErrorDisplay,
+  InlineError,
+  NetworkErrorDisplay,
+  FileUploadErrorDisplay,
+  ValidationErrorDisplay,
+  LoadingWithError,
+  ErrorSummary
 };
