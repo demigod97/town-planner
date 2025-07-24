@@ -94,100 +94,18 @@ export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: Permi
     <ComponentErrorBoundary>
       <div className="space-y-4 p-4">
         <div>
-          <h3 className="text-sm font-medium text-foreground mb-3">
-            Permit Template Generator
-          </h3>
-          
-          {/* Form Errors */}
-          {Object.keys(formErrors).length > 0 && (
-            <div className="mb-4">
-              <ValidationErrorDisplay errors={formErrors} />
-            </div>
-          )}
-          
-          {/* Submit Error */}
-          {submitError && (
-            <div className="mb-4">
-              <InlineError 
-                message={submitError} 
-                retry={() => setSubmitError("")}
-              />
-            </div>
-          )}
-          
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="permitType">Permit Type</Label>
-              <Select {...register("permitType")} data-testid="permit-type-select">
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border shadow-lg z-50">
-                  <SelectItem value="building">Building Permit</SelectItem>
-                  <SelectItem value="zoning">Zoning Variance</SelectItem>
-                  <SelectItem value="subdivision">Subdivision</SelectItem>
-                  <SelectItem value="site-plan">Site Plan Review</SelectItem>
-                  <SelectItem value="special-use">Special Use Permit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">Property Address</Label>
-              <Input
-                id="address"
-                {...register("address")}
-                placeholder="Enter property address"
-                className="bg-background"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="applicant">Applicant Name</Label>
-              <Input
-                id="applicant"
-                {...register("applicant")}
-                placeholder="Enter applicant name"
-                className="bg-background"
-              />
-            </div>
-
-            <MapPreview address={watchedAddress} />
-
-            <Button 
-              type="submit" 
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Generating..." : "Generate Template"}
-            </Button>
+          <Tabs defaultValue="form" className="flex flex-col h-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="form">Form</TabsTrigger>
+              <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="reports">Reports</TabsTrigger>
+            </TabsList>
             
-            {download && (
-              <Button 
-                variant="outline" 
-                className="w-full mt-2"
-                onClick={() => window.open(download, '_blank')}
-                data-testid="template-preview"
-              >
-                Download Template
-              </Button>
-            )}
-            
-            {preview && (
-              <Button 
-                variant="ghost" 
-                className="w-full mt-1"
-                onClick={() => window.open(preview, '_blank')}
-              >
-                Preview Template
-              </Button>
-            )}
-          </form>
-        </div>
-      </div>
-    </ComponentErrorBoundary>
-  );
-};
+            <TabsContent value="form" className="flex-1 overflow-auto">
+              <div>
+                <h3 className="text-sm font-medium text-foreground mb-3">
+                  Permit Template Generator
+                </h3>
                 
                 {/* Form Errors */}
                 {Object.keys(formErrors).length > 0 && (
@@ -209,7 +127,7 @@ export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: Permi
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="permitType">Permit Type</Label>
-                    <Select {...register("permitType")}>
+                    <Select {...register("permitType")} data-testid="permit-type-select">
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -258,6 +176,7 @@ export const PermitDrawer = ({ sessionId, notebookId, onTemplateCreated }: Permi
                       variant="outline" 
                       className="w-full mt-2"
                       onClick={() => window.open(download, '_blank')}
+                      data-testid="template-preview"
                     >
                       Download Template
                     </Button>
