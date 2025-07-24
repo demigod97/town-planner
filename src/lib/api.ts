@@ -55,8 +55,9 @@ export async function uploadAndProcessFile(
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) throw new Error('Not authenticated')
 
-    // 2. Upload file to Supabase storage
-    const fileName = `${user.id}/${Date.now()}-${file.name}`
+    // 2. Sanitize file name to remove special characters
+    const sanitizedFileName = file.name.replace(/[\[\]]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const fileName = `${user.id}/${Date.now()}-${sanitizedFileName}`
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('sources')
       .upload(fileName, file)
@@ -69,7 +70,6 @@ export async function uploadAndProcessFile(
       .insert({
         notebook_id: notebookId,
         display_name: file.name.replace(/\.[^/.]+$/, ''),
-        file_path: uploadData.path,
         file_size: file.size,
         processing_status: 'pending',
         metadata_extracted: false

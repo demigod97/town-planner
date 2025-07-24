@@ -14,6 +14,7 @@ import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { NetworkIndicator } from "@/components/NetworkStatus";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Source {
   id: string;
@@ -45,6 +46,7 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const { handleAsyncError } = useErrorHandler();
+  const queryClient = useQueryClient();
 
   const { data: sources = [], isLoading } = useQuery({
     queryKey: ["sources", notebookId],
@@ -100,14 +102,12 @@ export const SourcesSidebar = ({ notebookId }: SourcesSidebarProps) => {
         
         // Clear the query after successful upload
         setUserQuery("");
+        
+        // Refresh the sources list
+        queryClient.invalidateQueries({ queryKey: ["sources", notebookId] })
       } catch (error) {
         // Error already handled by handleAsyncError
         console.error('File upload failed:', error);
-        toast({
-          title: "Upload failed",
-          description: `Failed to upload ${file.name}. Please try again.`,
-          variant: "destructive",
-        });
       } finally {
         setUploadProgress((prev) => {
           const newProgress = { ...prev };
