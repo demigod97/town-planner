@@ -227,8 +227,782 @@ export function useSessionManagement({
 
         if (messageError) throw messageError;
 
-        // Call n8n webhook for AI response
-        const response = await fetch(import.meta.env.VITE_N8N_CHAT_WEBHOOK, {
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history
+   */
+  const clearAllHistoryMutation = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  /**
+   * Send message with optimistic updates - FIXED VERSION
+   */
+  const sendMessageMutationFixed = useMutation({
+    mutationFn: async ({ message, sessionId }: { message: string; sessionId: string }) => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Store user message
+        const { data: userMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            session_id: sessionId,
+            user_id: user.id,
+            role: 'user',
+            content: message
+          })
+          .select()
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history
+   */
+  const clearAllHistoryMutationFixed = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  /**
+   * Send message with optimistic updates - CORRECTED
+   */
+  const sendMessageMutationCorrected = useMutation({
+    mutationFn: async ({ message, sessionId }: { message: string; sessionId: string }) => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Store user message
+        const { data: userMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            session_id: sessionId,
+            user_id: user.id,
+            role: 'user',
+            content: message
+          })
+          .select()
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history - CORRECTED
+   */
+  const clearAllHistoryMutationCorrected = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  /**
+   * Send message - FINAL CORRECTED VERSION
+   */
+  const sendMessageFinal = useMutation({
+    mutationFn: async ({ message, sessionId }: { message: string; sessionId: string }) => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Store user message
+        const { data: userMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            session_id: sessionId,
+            user_id: user.id,
+            role: 'user',
+            content: message
+          })
+          .select()
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history - FINAL VERSION
+   */
+  const clearAllHistoryFinal = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  /**
+   * Send message - CLEAN FINAL VERSION
+   */
+  const sendMessageClean = useMutation({
+    mutationFn: async ({ message, sessionId }: { message: string; sessionId: string }) => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Store user message
+        const { data: userMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            session_id: sessionId,
+            user_id: user.id,
+            role: 'user',
+            content: message
+          })
+          .select()
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history - CLEAN FINAL VERSION
+   */
+  const clearAllHistoryClean = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  /**
+   * Send message with trigger-n8n edge function
+   */
+  const sendMessage = useMutation({
+    mutationFn: async ({ message, sessionId }: { message: string; sessionId: string }) => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Store user message
+        const { data: userMessage, error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            session_id: sessionId,
+            user_id: user.id,
+            role: 'user',
+            content: message
+          })
+          .select()
+          .single();
+
+        if (messageError) throw messageError;
+
+        // Call trigger-n8n edge function for AI response
+        const { data: chatResponse, error: chatError } = await supabase.functions
+          .invoke('trigger-n8n', {
+            body: {
+              webhook_type: 'chat',
+              webhook_url: import.meta.env.VITE_N8N_CHAT_WEBHOOK,
+              payload: {
+                sessionId,
+                message,
+                userId: user.id,
+                notebookId,
+                timestamp: new Date().toISOString()
+              }
+            }
+          });
+
+        if (chatError) {
+          console.error('Chat edge function error:', chatError);
+          throw new Error(`Chat service error: ${chatError.message}`);
+        }
+
+        return { userMessage, response: chatResponse };
+      }, { operation: 'send_message', sessionId, messageLength: message.length });
+    },
+    onMutate: async ({ message, sessionId }) => {
+      // Optimistic update - add user message immediately
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: message,
+        session_id: sessionId,
+        status: 'sending',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      }));
+
+      return { optimisticMessage };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic message with real one
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === context?.optimisticMessage.id 
+            ? { ...data.userMessage, status: 'completed' }
+            : msg
+        )
+      }));
+
+      // Add thinking indicator for AI response
+      const thinkingMessage: ChatMessage = {
+        id: `thinking-${Date.now()}`,
+        role: 'assistant',
+        content: 'AI is thinking...',
+        session_id: variables.sessionId,
+        status: 'processing',
+        created_at: new Date().toISOString()
+      };
+
+      setSessionState(prev => ({
+        ...prev,
+        messages: [...prev.messages, thinkingMessage]
+      }));
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message and show error
+      setSessionState(prev => ({
+        ...prev,
+        messages: prev.messages.filter(msg => msg.id !== context?.optimisticMessage.id)
+      }));
+
+      toast.error('Failed to send message');
+      console.error('Send message error:', error);
+    }
+  });
+
+  /**
+   * Clear all chat history - FINAL VERSION
+   */
+  const clearAllHistory = useMutation({
+    mutationFn: async () => {
+      return handleAsyncError(async () => {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw new Error('Authentication required');
+
+        // Delete all sessions except current one
+        const { error } = await supabase
+          .from('chat_sessions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('notebook_id', notebookId)
+          .neq('id', sessionState.currentSessionId || 'none');
+
+        if (error) throw error;
+      }, { operation: 'clear_all_history', notebookId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_sessions', notebookId] });
+      toast.success('Chat history cleared');
+    },
+    onError: (error) => {
+      toast.error('Failed to clear history');
+      console.error('Clear history error:', error);
+    }
+  });
+
+  return {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -356,6 +1130,8 @@ export function useSessionManagement({
     if (!enableRealtime || !sessionId) return;
 
     try {
+      console.log('Setting up realtime subscription for session:', sessionId);
+      
       const channel = supabase
         .channel(`chat_messages_${sessionId}`)
         .on(
@@ -366,21 +1142,39 @@ export function useSessionManagement({
             table: 'chat_messages',
             filter: `session_id=eq.${sessionId}`
           },
-          (payload: RealtimeMessagePayload) => {
-            handleRealtimeMessage(payload);
+          (payload: any) => {
+            try {
+              console.log('Raw realtime payload:', payload);
+              const realtimePayload: RealtimeMessagePayload = {
+                eventType: payload.eventType,
+                new: payload.new,
+                old: payload.old
+              };
+              handleRealtimeMessage(realtimePayload);
+            } catch (error) {
+              console.error('Error processing realtime payload:', error);
+              // Don't throw to prevent subscription failure
+            }
           }
         )
         .subscribe((status) => {
+          console.log('Realtime subscription status:', status, 'for session:', sessionId);
           if (status === 'SUBSCRIBED') {
             console.log('Real-time subscription active for session:', sessionId);
           } else if (status === 'CHANNEL_ERROR') {
             console.error('Real-time subscription error for session:', sessionId);
+            // Try to recover from channel error
+            setTimeout(() => {
+              console.log('Attempting to recover realtime subscription...');
+              setupRealtimeSubscription(sessionId);
+            }, 5000);
           }
         });
 
       realtimeChannelRef.current = channel;
     } catch (error) {
       console.error('Failed to setup realtime subscription:', error);
+      // Don't throw to prevent component crash
     }
   }, [enableRealtime]);
 
@@ -389,6 +1183,8 @@ export function useSessionManagement({
    */
   const handleRealtimeMessage = useCallback((payload: RealtimeMessagePayload) => {
     try {
+      console.log('Received realtime message:', payload);
+      
       if (payload.eventType === 'INSERT' && payload.new) {
         const newMessage = payload.new;
         
@@ -423,6 +1219,7 @@ export function useSessionManagement({
       }
     } catch (error) {
       console.error('Error handling realtime message:', error);
+      // Don't throw the error, just log it to prevent subscription failure
     }
   }, [sessionState.currentSessionId, queryClient]);
 
@@ -583,13 +1380,13 @@ export function useSessionManagement({
 
     // Actions
     createSession: createSessionMutation.mutateAsync,
-    clearAllHistory: clearAllHistoryMutation.mutateAsync,
+    clearAllHistory: clearAllHistory.mutateAsync,
     switchToSession,
     sendMessage: (message: string) => {
       if (!sessionState.currentSessionId) {
         throw new Error('No active session');
       }
-      return sendMessageMutation.mutateAsync({ 
+      return sendMessage.mutateAsync({ 
         message, 
         sessionId: sessionState.currentSessionId 
       });
@@ -602,8 +1399,8 @@ export function useSessionManagement({
     getMessageCount: () => sessionState.messages.length,
     
     // Status
-    isSending: sendMessageMutation.isPending,
+    isSending: sendMessage.isPending,
     isCreatingSession: createSessionMutation.isPending,
-    isClearingHistory: clearAllHistoryMutation.isPending
+    isClearingHistory: clearAllHistory.isPending
   };
 }
