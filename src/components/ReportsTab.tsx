@@ -154,7 +154,7 @@ export const ReportsTab = ({ notebookId }: ReportsTabProps) => {
       .replace(/^---$/gim, '<hr class="my-8 border-gray-300 border-t-2" />')
       .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">$1</code>')
       .replace(/\n\n/g, '</p><p class="mb-4 text-gray-700 leading-relaxed text-justify">')
-      .replace(/^(?!<[h|l|p|d|c])(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed text-justify">$1</p>')
+      .replace(/^(?!<h|<l|<p|<d|<c)(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed text-justify">$1</p>')
       .replace(/<li class="ml-6 mb-2 text-gray-700">/g, '<ul class="mb-4"><li class="ml-6 mb-2 text-gray-700">')
       .replace(/<\/li>(?!\s*<li)/g, '</li></ul>')
       .replace(/<li class="ml-6 mb-2 text-gray-700 list-decimal">/g, '<ol class="mb-4 list-decimal"><li class="ml-6 mb-2 text-gray-700">')

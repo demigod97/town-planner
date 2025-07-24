@@ -257,7 +257,7 @@ export const ReportsPanel = ({ notebookId }: ReportsPanelProps) => {
       .replace(/^---$/gim, '<hr class="my-8 border-gray-300 border-t-2" />')
       .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">$1</code>')
       .replace(/\n\n/g, '</p><p class="mb-4 text-gray-700 leading-relaxed text-justify">')
-      .replace(/^(?!<[h|l|p|d|c])(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed text-justify">$1</p>');
+      .replace(/^(?!<h|<l|<p|<d|<c)(.+)$/gim, '<p class="mb-4 text-gray-700 leading-relaxed text-justify">$1</p>');
   };
 
   const getStatusColor = (status: string) => {
