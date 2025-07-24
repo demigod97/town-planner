@@ -3,13 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { getDefaultNotebook, createChatSession } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
-import { TopBar } from "@/components/TopBar";
-import { SourcesSidebar } from "@/components/SourcesSidebar";
-import { ChatStream } from "@/components/ChatStream";
-import { PermitDrawer } from "@/components/PermitDrawer";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { FileText, Settings } from "lucide-react";
+import { TownPlannerLayout } from "@/components/TownPlannerLayout";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { LoadingWithError } from "@/components/ui/error-display";
@@ -19,8 +13,7 @@ const Index = () => {
   const { user, loading, initialized } = useSession();
   const [sessionId, setSessionId] = useState<string>("");
   const [notebookId, setNotebookId] = useState<string>("");
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
+  const [initializationError, setInitializationError] = useState<string>("");
   const { handleAsyncError } = useErrorHandler();
   const navigate = useNavigate();
 
@@ -38,18 +31,43 @@ const Index = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        setInitializationError("");
+        
+        // Initialize notebook
         const defaultNotebook = await handleAsyncError(
           () => getDefaultNotebook(),
           { operation: 'initialize_notebook' }
         );
         setNotebookId(defaultNotebook);
         
-        // Handle session initialization
+        // Handle session initialization with recovery
         const currentSessionId = searchParams.get("sessionId");
         if (currentSessionId) {
-          setSessionId(currentSessionId);
+          // Verify session exists and is accessible
+          try {
+            const { data: sessionExists, error: sessionError } = await supabase
+              .from('chat_sessions')
+              .select('id')
+              .eq('id', currentSessionId)
+              .single();
+
+            if (sessionError || !sessionExists) {
+              console.log('Session not found, creating new one');
+              throw new Error('Session not found');
+            }
+
+            setSessionId(currentSessionId);
+          } catch (sessionError) {
+            // Create new session if current one is invalid
+            const newSessionId = await handleAsyncError(
+              () => createChatSession(defaultNotebook),
+              { operation: 'create_chat_session_recovery' }
+            );
+            setSessionId(newSessionId);
+            setSearchParams({ sessionId: newSessionId });
+          }
         } else {
-          // Create new session in database and get the ID
+          // Create new session
           const newSessionId = await handleAsyncError(
             () => createChatSession(defaultNotebook),
             { operation: 'create_chat_session' }
@@ -58,21 +76,20 @@ const Index = () => {
           setSearchParams({ sessionId: newSessionId });
         }
       } catch (error) {
-        // Error already handled by handleAsyncError
         console.error("Failed to initialize app:", error);
+        setInitializationError(error.message || "Failed to initialize application");
       }
     };
 
-    // Only initialize notebook when user is authenticated
+    // Only initialize when user is authenticated
     if (initialized && !loading && user) {
       initializeApp();
     }
-  }
-  )
+  }, [initialized, loading, user, searchParams, setSearchParams, handleAsyncError]);
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
-    return <LoadingWithError isLoading={true} />;
+    return <LoadingWithError isLoading={true} fallbackMessage="Initializing authentication..." />;
   }
 
   // Don't render anything if not authenticated - redirect will handle it
@@ -80,55 +97,21 @@ const Index = () => {
     return null;
   }
 
-  // Show loading state while notebook is being initialized
+  // Show loading state while app is being initialized
   if (!sessionId || !notebookId) {
-    return <LoadingWithError isLoading={true} fallbackMessage="Initializing workspace..." />;
+    return (
+      <LoadingWithError 
+        isLoading={true} 
+        error={initializationError ? new Error(initializationError) : null}
+        retry={() => window.location.reload()}
+        fallbackMessage="Initializing workspace..." 
+      />
+    );
   }
 
   return (
     <ComponentErrorBoundary>
-      <div className="h-screen flex flex-col bg-background">
-        <TopBar />
-        
-        <div className="flex-1 grid grid-cols-[260px_1fr_340px] md:grid-cols-3 overflow-hidden">
-          {/* Desktop Sources Sidebar */}
-          <div className="hidden md:block">
-            <SourcesSidebar notebookId={notebookId} />
-          </div>
-          
-          {/* Mobile Sources Sheet */}
-          <Sheet open={sourcesOpen} onOpenChange={setSourcesOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="sm" className="md:hidden fixed top-16 left-2 z-40">
-                <FileText className="h-4 w-4" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-[300px]">
-              <SourcesSidebar notebookId={notebookId} />
-            </SheetContent>
-          </Sheet>
-          
-          {/* Chat Stream */}
-          <ChatStream sessionId={sessionId} />
-          
-          {/* Desktop Actions Sidebar */}
-          <div className="hidden md:block">
-            <PermitDrawer sessionId={sessionId} notebookId={notebookId} />
-          </div>
-          
-          {/* Mobile Actions Sheet */}
-          <Sheet open={actionsOpen} onOpenChange={setActionsOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="sm" className="md:hidden fixed top-16 right-2 z-40">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="p-0 w-[300px]">
-              <PermitDrawer sessionId={sessionId} notebookId={notebookId} />
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
+      <TownPlannerLayout sessionId={sessionId} notebookId={notebookId} />
     </ComponentErrorBoundary>
   );
 };

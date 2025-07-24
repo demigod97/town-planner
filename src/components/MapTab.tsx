@@ -125,7 +125,7 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
 
   return (
     <ComponentErrorBoundary>
-      <div className="space-y-4 h-full">
+      <div className="space-y-4 p-4">
         <div>
           <h3 className="text-sm font-medium text-foreground mb-3">
             Location & Mapping

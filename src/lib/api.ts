@@ -177,7 +177,9 @@ export async function createChatSession(
       user_id: user.id,
       notebook_id: notebookId,
       title: `Chat - ${new Date().toLocaleString()}`,
-      source_ids: sourceIds
+      source_ids: sourceIds,
+      total_messages: 0,
+      is_active: true
     })
     .select()
     .single()
@@ -190,10 +192,51 @@ export async function sendChatMessage(
   sessionId: string,
   message: string
 ): Promise<ChatMessage> {
-  const result = await sendChatWithErrorHandling(sessionId, message)
-  return {
-    role: 'assistant',
-    content: result.aiMessage.content
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('Not authenticated')
+
+    // Store user message first
+    const { data: userMessage, error: messageError } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        user_id: user.id,
+        role: 'user',
+        content: message
+      })
+      .select()
+      .single()
+
+    if (messageError) throw messageError
+
+    // Call the enhanced chat handler
+    const result = await sendChatWithErrorHandling(sessionId, message)
+    
+    // Store assistant response
+    const { data: assistantMessage, error: assistantError } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        user_id: user.id,
+        role: 'assistant',
+        content: result.aiMessage.content,
+        llm_provider: 'ollama', // Default provider
+        llm_model: 'qwen3:8b-q4_K_M'
+      })
+      .select()
+      .single()
+
+    if (assistantError) throw assistantError
+
+    return {
+      role: 'assistant',
+      content: result.aiMessage.content,
+      metadata: assistantMessage
+    }
+  } catch (error) {
+    console.error('Chat message error:', error)
+    throw error
   }
 }
 
