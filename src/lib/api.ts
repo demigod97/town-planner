@@ -167,7 +167,6 @@ export async function createChatSession(
       user_id: user.id,
       notebook_id: notebookId,
       title: `Chat - ${new Date().toLocaleString()}`,
-      context_type: 'documents',
       source_ids: sourceIds
     })
     .select()

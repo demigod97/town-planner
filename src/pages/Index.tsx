@@ -35,55 +35,37 @@ const Index = () => {
   }, [initialized, loading, user, navigate]);
 
   useEffect(() => {
-    const initializeNotebook = async () => {
+    const initializeApp = async () => {
       try {
         const defaultNotebook = await handleAsyncError(
           () => getDefaultNotebook(),
           { operation: 'initialize_notebook' }
         );
         setNotebookId(defaultNotebook);
+        
+        // Handle session initialization
+        const currentSessionId = searchParams.get("sessionId");
+        if (currentSessionId) {
+          setSessionId(currentSessionId);
+        } else {
+          // Create new session in database and get the ID
+          const newSessionId = await handleAsyncError(
+            () => createChatSession(defaultNotebook),
+            { operation: 'create_chat_session' }
+          );
+          setSessionId(newSessionId);
+          setSearchParams({ sessionId: newSessionId });
+        }
       } catch (error) {
         // Error already handled by handleAsyncError
-        console.error("Failed to initialize notebook:", error);
+        console.error("Failed to initialize app:", error);
       }
     };
 
-    const initializeChatSession = async (sessionId: string, notebookId: string) => {
-      try {
-        await handleAsyncError(
-          () => createChatSession({
-            id: sessionId,
-            user_id: user!.id,
-            notebook_id: notebookId,
-            title: "New Chat Session",
-            llm_provider: "ollama",
-            llm_model: "qwen3:8b-q4_K_M"
-          }),
-          { operation: 'initialize_chat_session' }
-        );
-      } catch (error) {
-        console.error("Failed to initialize chat session:", error);
-      }
-    };
     // Only initialize notebook when user is authenticated
     if (initialized && !loading && user) {
-      initializeNotebook();
+      initializeApp();
     }
-
-    const currentSessionId = searchParams.get("sessionId");
-    if (currentSessionId) {
-      setSessionId(currentSessionId);
-    } else {
-      const newSessionId = uuidv4();
-      setSessionId(newSessionId);
-      setSearchParams({ sessionId: newSessionId });
-      
-      // Create chat session in database when new sessionId is generated
-      if (notebookId && user) {
-        initializeChatSession(newSessionId, notebookId);
-      }
-    }
-  }, [searchParams, setSearchParams, user, loading, initialized, notebookId]);
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
