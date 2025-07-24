@@ -5,16 +5,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ErrorHandler } from '@/lib/error-handling';
+import { recoverFromErrorBoundary } from '@/utils/sessionRecovery';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface ErrorFallbackProps {
   error?: Error;
   retry?: () => void;
   context?: string;
+  notebookId?: string;
 }
 
-export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, retry, context }) => {
+export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ 
+  error, 
+  retry, 
+  context,
+  notebookId 
+}) => {
   const [showDetails, setShowDetails] = React.useState(false);
   const [errorStats, setErrorStats] = React.useState<any>(null);
+  const [isRecovering, setIsRecovering] = React.useState(false);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   React.useEffect(() => {
     // Get error statistics for debugging
@@ -22,6 +33,37 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, retry, cont
     setErrorStats(stats);
   }, []);
 
+  const handleSessionRecovery = async () => {
+    if (!notebookId) {
+      window.location.reload();
+      return;
+    }
+
+    setIsRecovering(true);
+    try {
+      const lastSessionId = searchParams.get('sessionId') || undefined;
+      const { sessionId, recovered } = await recoverFromErrorBoundary(
+        notebookId,
+        lastSessionId
+      );
+
+      // Navigate to recovered session
+      navigate(`/?sessionId=${sessionId}`, { replace: true });
+      
+      if (recovered) {
+        // Show success message after navigation
+        setTimeout(() => {
+          alert('Session recovered successfully with previous messages restored.');
+        }, 1000);
+      }
+    } catch (recoveryError) {
+      console.error('Session recovery failed:', recoveryError);
+      // Fallback to page reload
+      window.location.reload();
+    } finally {
+      setIsRecovering(false);
+    }
+  };
   const handleReportError = () => {
     // Create a detailed error report
     const errorReport = {
@@ -125,15 +167,34 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, retry, cont
 
           {/* Action Buttons */}
           <div className="flex gap-2">
+            {notebookId && (
+              <Button 
+                onClick={handleSessionRecovery}
+                disabled={isRecovering}
+                className="flex-1"
+              >
+                {isRecovering ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Recovering...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Recover Session
+                  </>
+                )}
+              </Button>
+            )}
             <Button 
               onClick={() => window.location.reload()} 
               variant="outline" 
-              className="flex-1"
+              className={notebookId ? "flex-1" : "flex-1"}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Reload Page
             </Button>
-            {retry && (
+            {retry && !notebookId && (
               <Button onClick={retry} className="flex-1">
                 Try Again
               </Button>

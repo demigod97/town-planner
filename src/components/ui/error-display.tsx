@@ -196,13 +196,15 @@ const LoadingWithError: React.FC<{
   children: React.ReactNode;
   timeout?: number;
   fallbackMessage?: string;
+  notebookId?: string;
 }> = ({ 
   isLoading, 
   error, 
   retry, 
   children, 
   timeout = 30000, // 30 seconds
-  fallbackMessage 
+  fallbackMessage,
+  notebookId
 }) => {
   const [hasTimedOut, setHasTimedOut] = React.useState(false);
 
@@ -225,6 +227,7 @@ const LoadingWithError: React.FC<{
         retry={retry}
         showDetails={import.meta.env.DEV}
         details={error.stack}
+        context={notebookId ? `Notebook: ${notebookId}` : undefined}
       />
     );
   }
