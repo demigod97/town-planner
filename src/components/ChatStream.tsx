@@ -1,9 +1,3 @@
-/**
- * 📄 ChatStream.tsx - DEPRECATED
- * This component has been replaced by EnhancedChatStream.tsx
- * Keeping for backward compatibility during transition
- */
-
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +12,6 @@ import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { fetchCitation } from "@/lib/api";
 import { InlineError } from "@/components/ui/error-display";
 import { NetworkIndicator } from "@/components/NetworkStatus";
-import { parseMessageContent } from "@/utils/messageContentParser";
-import type { ChatMessage as ChatMessageType } from "@/types/chat";
 
 
 // Load thinking animation from public folder
@@ -129,70 +121,42 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   };
 
   const renderMessageContent = (content: string) => {
-    try {
-      // Use the bulletproof parser
-      const contentData = parseMessageContent(content);
-      
-      if (contentData.type === 'error') {
+    // Simple regex to find citation chips like [1], [2], etc.
+    const citationRegex = /\[(\d+)\]/g;
+    const parts = content.split(citationRegex);
+    
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        // This is a citation number
+        const citationId = part;
         return (
-          <div className="text-sm text-destructive">
-            {contentData.content}
-          </div>
+          <Popover key={index}>
+            <PopoverTrigger asChild>
+              <Badge 
+                variant="secondary" 
+                className="cursor-pointer mx-1"
+                onMouseEnter={() => handleCitationHover(citationId)}
+              >
+                [{citationId}]
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              {citationData[citationId] ? (
+                <div>
+                  <h4 className="font-semibold mb-2">{citationData[citationId].title}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {citationData[citationId].excerpt}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Loading citation...</div>
+              )}
+            </PopoverContent>
+          </Popover>
         );
       }
-      
-      if (contentData.type === 'loading') {
-        return (
-          <div className="text-sm text-muted-foreground">
-            {contentData.content}
-          </div>
-        );
-      }
-      
-      // Render text with citations
-      const citationRegex = /\[(\d+)\]/g;
-      const parts = contentData.content.split(citationRegex);
-      
-      return parts.map((part, index) => {
-        if (index % 2 === 1) {
-          // This is a citation number
-          const citationId = part;
-          return (
-            <Popover key={index}>
-              <PopoverTrigger asChild>
-                <Badge 
-                  variant="secondary" 
-                  className="cursor-pointer mx-1"
-                  onMouseEnter={() => handleCitationHover(citationId)}
-                >
-                  [{citationId}]
-                </Badge>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                {citationData[citationId] ? (
-                  <div>
-                    <h4 className="font-semibold mb-2">{citationData[citationId].title}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {citationData[citationId].excerpt}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Loading citation...</div>
-                )}
-              </PopoverContent>
-            </Popover>
-          );
-        }
-        return part;
-      });
-    } catch (error) {
-      console.error('Error rendering message content:', error);
-      return (
-        <div className="text-sm text-destructive">
-          Failed to display message content
-        </div>
-      );
-    }
+      return part;
+    });
   };
 
   return (
