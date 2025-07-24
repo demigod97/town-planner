@@ -22,7 +22,7 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: "YOUR_GOOGLE_MAPS_API_KEY", // TODO: Replace with actual API key
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "", 
     libraries,
   });
 
@@ -77,14 +77,11 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
           Property Address
         </label>
         <Input
-          placeholder="Enter address to search..."
+          placeholder="Enter address to search"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           className="w-full"
         />
-        <p className="text-xs text-muted-foreground mt-1">
-          Google Places Autocomplete will be integrated here
-        </p>
       </div>
 
       {isLoaded && selectedPlace ? (
@@ -101,7 +98,7 @@ export const MapTab = ({ sessionId }: MapTabProps) => {
       ) : (
         <div className="border rounded-lg h-[200px] bg-muted/50 flex items-center justify-center">
           <p className="text-sm text-muted-foreground">
-            {isLoaded ? "Select an address to view map" : "Loading map..."}
+            {isLoaded ? "Select an address to view map" : "Loading map"}
           </p>
         </div>
       )}

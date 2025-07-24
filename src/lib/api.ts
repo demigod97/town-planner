@@ -45,7 +45,25 @@ export async function getUserSettings(): Promise<LLMSettings> {
 // File Upload and Processing
 // =====================================================
 
-export async function uploadAndProcessFile(
+export async function uploadFile(file: File, notebookId: string, userQuery?: string) {
+  try {
+    const result = await uploadAndProcessFile(file, notebookId, userQuery)
+    
+    return {
+      id: result.uploadId,
+      display_name: file.name,
+      file_size: file.size,
+      processing_status: 'processing',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  } catch (error) {
+    console.error('uploadFile error:', error)
+    throw error
+  }
+}
+
+async function uploadAndProcessFile(
   file: File,
   notebookId: string,
   userQuery?: string
@@ -85,22 +103,21 @@ export async function uploadAndProcessFile(
 
     // 4. Store user query if provided
     if (userQuery) {
+      // Store user query in source metadata for now
       await supabase
-        .from('chat_messages')
-        .insert({
-          session_id: null, // Will be associated later
-          content: userQuery,
-          message_type: 'user',
-          sources_used: [source.id]
+        .from('sources')
+        .update({
+          extracted_metadata: { user_query: userQuery }
         })
+        .eq('id', source.id)
     }
 
-    // 5. Call edge function to trigger n8n ingest webhook
+    // 5. Call edge function to trigger n8n ingest webhook with explicit URL
     const { data: processingResult, error: processingError } = await supabase.functions
       .invoke('trigger-n8n', {
         body: {
           webhook_type: 'ingest',
-          webhook_url: 'https://n8n.coralshades.ai/webhook-test/ingest',
+          webhook_url: import.meta.env.VITE_N8N_INGEST_URL || 'https://n8n.coralshades.ai/webhook-test/ingest',
           payload: {
             source_id: source.id,
             file_path: uploadData.path,
@@ -240,6 +257,64 @@ export async function sendChatMessage(
 }
 
 // =====================================================
+// Source Management
+// =====================================================
+
+export async function deleteAllSources(notebookId: string): Promise<void> {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('Not authenticated')
+
+    // Get all sources for this notebook and user
+    const { data: sources, error: sourcesError } = await supabase
+      .from('sources')
+      .select('id, file_url')
+      .eq('notebook_id', notebookId)
+      .eq('user_id', user.id)
+
+    if (sourcesError) throw sourcesError
+
+    if (sources && sources.length > 0) {
+      // Delete files from storage
+      const filePaths = sources.map(source => source.file_url).filter(Boolean)
+      if (filePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('sources')
+          .remove(filePaths)
+        
+        if (storageError) {
+          console.warn('Some files could not be deleted from storage:', storageError)
+        }
+      }
+
+      // Delete source records from database
+      const { error: deleteError } = await supabase
+        .from('sources')
+        .delete()
+        .eq('notebook_id', notebookId)
+        .eq('user_id', user.id)
+
+      if (deleteError) throw deleteError
+    }
+  } catch (error) {
+    console.error('Error deleting all sources:', error)
+    throw error
+  }
+}
+
+// =====================================================
+// Citation Management
+// =====================================================
+
+export async function fetchCitation(citationId: string): Promise<{ title: string; excerpt: string }> {
+  // Mock implementation for now - replace with actual API call when backend is ready
+  return {
+    title: `Citation ${citationId}`,
+    excerpt: `This is a sample excerpt for citation ${citationId}. In a real implementation, this would fetch actual citation data from the backend.`
+  }
+}
+
+// =====================================================
 // Notebook Management
 // =====================================================
 
@@ -374,7 +449,7 @@ export async function genTemplate(params: {
       .invoke('trigger-n8n', {
         body: {
           webhook_type: 'template',
-          webhook_url: 'https://n8n.coralshades.ai/webhook-test/template',
+          webhook_url: import.meta.env.VITE_N8N_TEMPLATE_URL || 'https://n8n.coralshades.ai/webhook-test/template',
           payload: {
             permit_type: params.permitType,
             address: params.address,
@@ -397,24 +472,6 @@ export async function genTemplate(params: {
   }
 }
 
-// For SourcesSidebar.tsx
-export async function uploadFile(file: File, notebookId: string, userQuery?: string) {
-  try {
-    const result = await uploadAndProcessFile(file, notebookId, userQuery)
-    
-    return {
-      id: result.uploadId,
-      display_name: file.name,
-      file_size: file.size,
-      processing_status: 'processing',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  } catch (error) {
-    console.error('uploadFile error:', error)
-    throw error
-  }
-}
 
 // =====================================================
 // LLM Connection Testing

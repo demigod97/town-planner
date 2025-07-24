@@ -9,6 +9,7 @@ import Lottie from "lottie-react";
 import { sendChat } from "@/lib/api";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
+import { fetchCitation } from "@/lib/api";
 
 
 // Load thinking animation from public folder
@@ -32,24 +33,6 @@ interface Message {
   avatar?: string;
 }
 
-const messages: Message[] = [
-  {
-    id: "1",
-    type: "assistant",
-    content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more. Please select the relevant documents from the \"Sources\" panel.",
-  },
-  {
-    id: "2",
-    type: "user",
-    content: "I need to check the setback requirements for a new residential construction project on Elm Street.",
-  },
-  {
-    id: "3",
-    type: "assistant",
-    content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
-  },
-];
-
 interface ChatStreamProps {
   sessionId: string;
 }
@@ -63,17 +46,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
     {
       id: "1",
       type: "assistant",
-      content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more. Please select the relevant documents from the \"Sources\" panel.",
-    },
-    {
-      id: "2",
-      type: "user",
-      content: "I need to check the setback requirements for a new residential construction project on Elm Street.",
-    },
-    {
-      id: "3",
-      type: "assistant",
-      content: "Based on the \"Zoning Master Plan 2023,\" the setback requirement for residential properties on Elm Street is 15 feet from the front property line and 5 feet from the side property lines [1]. Would you like me to generate a permit template with this information [2]?",
+      content: "Hello! How can I assist you with your town planning needs today? I can help you with zoning regulations, permit applications, and more.",
     },
   ]);
   const thinkingAnimation = useThinkingAnimation();
@@ -81,8 +54,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
   const handleCitationHover = async (citationId: string) => {
     if (!citationData[citationId]) {
       try {
-        const response = await fetch(`/api/citation?id=${citationId}`);
-        const data = await response.json();
+        const data = await fetchCitation(citationId);
         setCitationData(prev => ({ ...prev, [citationId]: data }));
       } catch (error) {
         console.error('Failed to fetch citation:', error);
@@ -250,7 +222,7 @@ export const ChatStream = ({ sessionId }: ChatStreamProps) => {
         <div className="border-t p-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Ask a follow-up question..."
+              placeholder="Ask about your documents..."
               className="flex-1"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

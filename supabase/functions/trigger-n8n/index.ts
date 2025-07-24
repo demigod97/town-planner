@@ -17,25 +17,52 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request body
-    const requestBody = await req.json()
-    const { webhook_type, webhook_url, payload }: WebhookRequest = requestBody
-
-    console.log('Received request:', { webhook_type, webhook_url: webhook_url ? 'provided' : 'not provided', payload: payload ? 'provided' : 'missing' })
-
-    if (!webhook_type || !payload) {
-      throw new Error('Missing required parameters: webhook_type, payload')
+    // Parse request body with better error handling
+    let requestBody: WebhookRequest
+    try {
+      const bodyText = await req.text()
+      console.log('Raw request body:', bodyText)
+      requestBody = JSON.parse(bodyText)
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError)
+      throw new Error('Invalid JSON in request body')
     }
 
-    // Get webhook URL from environment if not provided
+    const { webhook_type, webhook_url, payload } = requestBody
+
+    console.log('Received request:', { 
+      webhook_type, 
+      webhook_url: webhook_url ? 'provided' : 'not provided', 
+      payload: payload ? 'provided' : 'missing' 
+    })
+
+    // Validate required parameters
+    if (!webhook_type || !payload) {
+      throw new Error('Missing required parameters: webhook_type and payload are required')
+    }
+
+    // Get webhook URL from environment or use provided one
     let finalWebhookUrl = webhook_url || ''
     
-    if (webhook_type === 'chat' && !finalWebhookUrl) {
-      finalWebhookUrl = Deno.env.get('N8N_CHAT_WEBHOOK_URL') || 
-                       Deno.env.get('VITE_N8N_CHAT_WEBHOOK') ||
-                       'https://n8n.coralshades.ai/webhook-test/hhlm-chat'
+    if (!finalWebhookUrl) {
+      const baseUrl = Deno.env.get('N8N_WEBHOOK_BASE_URL') || 'https://n8n.coralshades.ai'
+      
+      switch (webhook_type) {
+        case 'chat':
+          finalWebhookUrl = Deno.env.get('VITE_N8N_CHAT_WEBHOOK') || 
+                           `${baseUrl}/webhook-test/hhlm-chat`
+          break
+        case 'ingest':
+          finalWebhookUrl = `${baseUrl}/webhook-test/ingest`
+          break
+        case 'template':
+          finalWebhookUrl = `${baseUrl}/webhook-test/template`
+          break
+        default:
+          throw new Error(`Unknown webhook_type: ${webhook_type}`)
+      }
     }
-    
+
     if (!finalWebhookUrl) {
       throw new Error(`No webhook URL available for ${webhook_type} webhook`)
     }
@@ -77,6 +104,7 @@ serve(async (req) => {
     })
 
     console.log('n8n response status:', response.status)
+    console.log('n8n response headers:', Object.fromEntries(response.headers.entries()))
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -84,9 +112,15 @@ serve(async (req) => {
       throw new Error(`n8n webhook failed: ${response.status} ${errorText}`)
     }
 
-    const responseData = await response.json().catch(() => ({}))
+    let responseData = {}
+    try {
+      responseData = await response.json()
+    } catch (jsonError) {
+      console.log('n8n response is not JSON, treating as success')
+      responseData = { message: 'Success' }
+    }
+    
     console.log('n8n response data:', responseData)
-
     console.log(`${webhook_type} webhook completed successfully`)
 
     return new Response(
