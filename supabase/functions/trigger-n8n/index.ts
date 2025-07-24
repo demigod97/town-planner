@@ -76,30 +76,13 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }
 
-    // Get n8n API key from Supabase secrets
-    const n8nApiKey = Deno.env.get('N8N_API_KEY')
-    console.log('N8N API Key available:', n8nApiKey ? 'yes' : 'no')
-    console.log('N8N API Key (first 20 chars):', n8nApiKey ? n8nApiKey.substring(0, 20) + '...' : 'not found')
-    
-    // Prepare headers - try multiple authentication methods
+    // Try webhook without authentication first (many n8n webhooks don't require auth)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'Supabase-Edge-Function/1.0'
     }
-    
-    // Try different authentication header formats
-    if (n8nApiKey) {
-      // Method 1: X-Api-Key header (most common for n8n)
-      headers['X-Api-Key'] = n8nApiKey
-      // Method 2: Authorization Bearer token (alternative)
-      headers['Authorization'] = `Bearer ${n8nApiKey}`
-      // Method 3: X-N8N-API-KEY (n8n specific)
-      headers['X-N8N-API-KEY'] = n8nApiKey
-      console.log('Added authentication headers to request')
-    } else {
-      console.warn('N8N_API_KEY not found in environment variables')
-    }
 
+    console.log('Making request to n8n webhook without authentication first...')
     console.log('Request headers:', Object.keys(headers))
     console.log('Making request to n8n with payload:', JSON.stringify(enhancedPayload, null, 2))
 
@@ -120,17 +103,93 @@ serve(async (req) => {
       console.log('n8n response status:', response.status)
       console.log('n8n response headers:', Object.fromEntries(response.headers.entries()))
 
+      // If we get 401/403, try with authentication
+      if (response.status === 401 || response.status === 403) {
+        console.log('Authentication required, retrying with API key...')
+        
+        const n8nApiKey = Deno.env.get('N8N_API_KEY')
+        if (n8nApiKey) {
+          const authHeaders = {
+            ...headers,
+            'Authorization': `Bearer ${n8nApiKey}`,
+            'X-Api-Key': n8nApiKey,
+            'X-N8N-API-KEY': n8nApiKey
+          }
+          
+          console.log('Retrying with authentication headers...')
+          
+          const authController = new AbortController()
+          const authTimeoutId = setTimeout(() => authController.abort(), 30000)
+          
+          try {
+            const authResponse = await fetch(finalWebhookUrl, {
+              method: 'POST',
+              headers: authHeaders,
+              body: JSON.stringify(enhancedPayload),
+              signal: authController.signal
+            })
+            
+            clearTimeout(authTimeoutId)
+            
+            console.log('Authenticated n8n response status:', authResponse.status)
+            
+            if (!authResponse.ok) {
+              const errorText = await authResponse.text()
+              console.error('n8n authenticated webhook error response:', errorText)
+              throw new Error(`n8n webhook failed even with authentication (${authResponse.status}): ${errorText}`)
+            }
+            
+            // Use the authenticated response
+            let responseData = {}
+            try {
+              const responseText = await authResponse.text()
+              if (responseText) {
+                responseData = JSON.parse(responseText)
+              } else {
+                responseData = { message: 'Success - no response body' }
+              }
+            } catch (jsonError) {
+              console.log('n8n response is not JSON, treating as success')
+              responseData = { message: 'Success' }
+            }
+            
+            console.log('n8n authenticated response data:', responseData)
+            console.log(`${webhook_type} webhook completed successfully with authentication`)
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                webhook_type,
+                response: responseData,
+                message: `${webhook_type} webhook triggered successfully with authentication`
+              }),
+              {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
+              }
+            )
+            
+          } catch (authFetchError) {
+            clearTimeout(authTimeoutId)
+            if (authFetchError.name === 'AbortError') {
+              throw new Error('n8n authenticated webhook request timed out after 30 seconds')
+            }
+            throw authFetchError
+          }
+        } else {
+          const errorText = await response.text()
+          console.error('n8n webhook requires authentication but no API key available:', errorText)
+          throw new Error(`n8n webhook requires authentication (${response.status}) but N8N_API_KEY not configured: ${errorText}`)
+        }
+      }
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error('n8n webhook error response:', errorText)
         
         // Provide more specific error messages
-        if (response.status === 403) {
-          throw new Error(`n8n webhook authentication failed (403): ${errorText}. Check if the API key is correct and the webhook is configured to accept it.`)
-        } else if (response.status === 404) {
+        if (response.status === 404) {
           throw new Error(`n8n webhook not found (404): ${finalWebhookUrl}. Check if the webhook URL is correct and the workflow is active.`)
-        } else if (response.status === 401) {
-          throw new Error(`n8n webhook unauthorized (401): ${errorText}. Check authentication configuration.`)
         } else {
           throw new Error(`n8n webhook failed (${response.status}): ${errorText}`)
         }
