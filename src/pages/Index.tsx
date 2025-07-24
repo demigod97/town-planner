@@ -66,6 +66,8 @@ const Index = () => {
     if (initialized && !loading && user) {
       initializeApp();
     }
+  }
+  )
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
