@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import { getDefaultNotebook } from "@/lib/api";
+import { getDefaultNotebook, createChatSession } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { TopBar } from "@/components/TopBar";
 import { SourcesSidebar } from "@/components/SourcesSidebar";
@@ -48,6 +48,23 @@ const Index = () => {
       }
     };
 
+    const initializeChatSession = async (sessionId: string, notebookId: string) => {
+      try {
+        await handleAsyncError(
+          () => createChatSession({
+            id: sessionId,
+            user_id: user!.id,
+            notebook_id: notebookId,
+            title: "New Chat Session",
+            llm_provider: "ollama",
+            llm_model: "qwen3:8b-q4_K_M"
+          }),
+          { operation: 'initialize_chat_session' }
+        );
+      } catch (error) {
+        console.error("Failed to initialize chat session:", error);
+      }
+    };
     // Only initialize notebook when user is authenticated
     if (initialized && !loading && user) {
       initializeNotebook();
@@ -60,8 +77,13 @@ const Index = () => {
       const newSessionId = uuidv4();
       setSessionId(newSessionId);
       setSearchParams({ sessionId: newSessionId });
+      
+      // Create chat session in database when new sessionId is generated
+      if (notebookId && user) {
+        initializeChatSession(newSessionId, notebookId);
+      }
     }
-  }, [searchParams, setSearchParams, user, loading, initialized]);
+  }, [searchParams, setSearchParams, user, loading, initialized, notebookId]);
 
   // Show loading state while authentication is in progress
   if (loading || !initialized) {
